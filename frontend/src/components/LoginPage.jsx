@@ -1,26 +1,43 @@
 import React, { useState } from 'react';
 import './LoginPage.css';
 
-const LoginPage = ({ onLogin }) => {
+const LoginPage = ({ onLogin, onRegister }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('student');
   const [classCodes, setClassCodes] = useState(['']);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    console.log('Logging in:', { email, password });
-    // In a real app, this would authenticate with backend
-    onLogin({ email, role: 'student', name: 'Tommy Kang' });
+    setIsLoading(true);
+    try {
+      await onLogin({ email, password });
+    } catch (error) {
+      // Error is already handled in App.js
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    console.log('Registering:', { email, password, fullName, role, classCodes });
-    // In a real app, this would create account with backend
-    onLogin({ email, role, name: fullName });
+    setIsLoading(true);
+    try {
+      await onRegister({ 
+        email, 
+        password, 
+        fullName, 
+        role: role === 'professor' ? 'instructor' : role, // Map professor to instructor for backend
+        classCodes: role === 'student' ? classCodes.filter(code => code.trim() !== '') : []
+      });
+    } catch (error) {
+      // Error is already handled in App.js
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleAddClassCode = () => {
@@ -75,7 +92,9 @@ const LoginPage = ({ onLogin }) => {
               />
             </div>
 
-            <button type="submit" className="submit-btn">Log In</button>
+            <button type="submit" className="submit-btn" disabled={isLoading}>
+              {isLoading ? 'Logging in...' : 'Log In'}
+            </button>
 
             <div className="form-footer">
               <p>Don't have an account? 
@@ -145,8 +164,8 @@ const LoginPage = ({ onLogin }) => {
                 <label className="radio-label">
                   <input
                     type="radio"
-                    value="professor"
-                    checked={role === 'professor'}
+                    value="instructor"
+                    checked={role === 'instructor'}
                     onChange={(e) => setRole(e.target.value)}
                   />
                   <span>Professor</span>
@@ -188,7 +207,9 @@ const LoginPage = ({ onLogin }) => {
               </div>
             )}
 
-            <button type="submit" className="submit-btn">Create Account</button>
+            <button type="submit" className="submit-btn" disabled={isLoading}>
+              {isLoading ? 'Creating Account...' : 'Create Account'}
+            </button>
 
             <div className="form-footer">
               <p>Already have an account? 

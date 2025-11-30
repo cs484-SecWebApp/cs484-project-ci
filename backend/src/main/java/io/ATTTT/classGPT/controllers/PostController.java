@@ -20,6 +20,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -124,13 +126,17 @@ public class PostController {
             Account account = accountService.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
             reply.setAuthor(account);
+            // Check if the author has ROLE_ADMIN (instructor)
             reply.setFromInstructor(account.hasRole("ROLE_ADMIN"));
         } else {
-            reply.setAuthor(null);
+            // Fallback for anonymous posts
+            Account account = accountService.findByEmail("user.user@domain.com")
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+            reply.setAuthor(account);
             reply.setFromInstructor(false);
-        } //We're gonna have to change this once the log in page is figured out
+        }
 
-        reply.setLLMGenerated(false);
+        reply.setLlmGenerated(false);
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(saved);
     }
@@ -147,25 +153,107 @@ public class PostController {
         reply.setBody(geminiService.generateReply(post));
         reply.setPost(post);
 
-        if (principal != null) {
-            String email = principal.getName();
-            Account account = accountService.findByEmail(email)
-                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-            reply.setAuthor(account);
-            reply.setFromInstructor(account.hasRole("ROLE_ADMIN"));
-        } else {
-            reply.setAuthor(null);
-            reply.setFromInstructor(false);
-        } //We're gonna have to change this once the log in page is figured out
-
-        reply.setLLMGenerated(true);
+        // Set author to null or a system account for AI replies
+        reply.setAuthor(null);
+        reply.setFromInstructor(false);
+        reply.setLlmGenerated(true);
+        
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(saved);
+    }
+
+    @PutMapping("/{postId}/replies/{replyId}/endorse")
+//    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Replies> endorseReply(@PathVariable Long postId,
+                                                  @PathVariable Long replyId,
+                                                  Principal principal) {
+        // Verify the reply exists and belongs to this post
+        Optional<Replies> replyOpt = repliesRepository.findById(replyId);
+        if (replyOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Replies reply = replyOpt.get();
+        if (!reply.getPost().getId().equals(postId)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        // Toggle endorsed status
+        reply.setEndorsed(!reply.isEndorsed());
+        Replies saved = repliesRepository.save(reply);
+        
+        return ResponseEntity.ok(saved);
+    }
+
+    @GetMapping("/statistics")
+    public ResponseEntity<StatisticsResponse> getStatistics() {
+        List<Post> allPosts = postService.getAll();
+        
+        StatisticsResponse stats = new StatisticsResponse();
+        stats.totalPosts = allPosts.size();
+        stats.totalReplies = 0;
+        stats.totalAIReplies = 0;
+        stats.totalEndorsements = 0;
+        
+        List<AIGenerationInfo> aiGenerations = new ArrayList<>();
+        
+        for (Post post : allPosts) {
+            List<Replies> replies = post.getReplies();
+            if (replies != null) {
+                stats.totalReplies += replies.size();
+                
+                for (Replies reply : replies) {
+                    // Track AI generations
+                    if (reply.isLlmGenerated()) {
+                        stats.totalAIReplies++;
+                        
+                        AIGenerationInfo info = new AIGenerationInfo();
+                        info.replyId = reply.getId();
+                        info.postId = post.getId();
+                        info.postTitle = post.getTitle();
+                        info.generatedAt = reply.getCreatedAt();
+                        info.endorsed = reply.isEndorsed();
+                        info.replyBody = reply.getBody();
+                        aiGenerations.add(info);
+                    }
+                    
+                    // Count endorsements
+                    if (reply.isEndorsed()) {
+                        stats.totalEndorsements++;
+                    }
+                }
+            }
+        }
+        
+        // Sort AI generations by most recent
+        aiGenerations.sort((a, b) -> b.generatedAt.compareTo(a.generatedAt));
+        stats.aiGenerations = aiGenerations;
+        
+        return ResponseEntity.ok(stats);
     }
 
     @Data
     public static class CreateFollowupRequest {
         private String body;
+    }
+
+    @Data
+    public static class StatisticsResponse {
+        public int totalPosts;
+        public int totalReplies;
+        public int totalAIReplies;
+        public int totalEndorsements;
+        public List<AIGenerationInfo> aiGenerations;
+    }
+
+    @Data
+    public static class AIGenerationInfo {
+        public Long replyId;
+        public Long postId;
+        public String postTitle;
+        public LocalDateTime generatedAt;
+        public boolean endorsed;
+        public String replyBody;
     }
 
 }

@@ -36,14 +36,16 @@ public class Replies {
     private Post post;
 
     private boolean fromInstructor;
-    private boolean LLMGenerated;
+    
+    // Fixed: Changed from LLMGenerated to llmGenerated for proper Java naming
+    @Column(name = "llm_generated")
+    private boolean llmGenerated;
+    
     private boolean endorsed;
 
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();
     }
-
-
 
 }

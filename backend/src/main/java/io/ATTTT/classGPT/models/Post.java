@@ -3,6 +3,7 @@ package io.ATTTT.classGPT.models;
 
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import jakarta.persistence.*;
+import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -14,11 +15,14 @@ import java.util.List;
 @Entity
 @Getter
 @Setter
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
+@SequenceGenerator(name = "post_seq", sequenceName = "post_seq", allocationSize = 1)
 public class Post{
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE)
 
+    @EqualsAndHashCode.Include
     private Long id;
 
     private String title;
@@ -32,14 +36,12 @@ public class Post{
 
     private LocalDateTime modifiedAt;
 
-    private String tag;
-
     @ElementCollection
     @CollectionTable(
             name = "post_tags",
             joinColumns = @JoinColumn(name = "post_id")
     )
-    @Column(name = "tag")
+    @Column(name = "tag_value")
     private List<String> tags = new ArrayList<>();
 
     private boolean isPinned;
@@ -51,7 +53,7 @@ public class Post{
     @JoinColumn(name = "account_id", referencedColumnName = "id", nullable = false)
     private Account account;
 
-    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference
     private List<Replies> replies = new ArrayList<>();
 

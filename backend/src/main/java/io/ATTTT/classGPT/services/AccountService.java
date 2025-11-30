@@ -13,6 +13,9 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import java.util.List;
+
+
 @Service
 @RequiredArgsConstructor
 public class AccountService {
@@ -55,6 +58,19 @@ public class AccountService {
     }
 
     public Optional<Account> findByEmail(String email) {
-        return accountRepository.findOneByEmailIgnoreCase(email);
+
+        List<Account> accounts = accountRepository.findByEmailIgnoreCase(email);
+
+        if (accounts.isEmpty()) {
+            return Optional.empty();
+        }
+
+        if (accounts.size() > 1) {
+            System.out.println(
+                    "WARNING: multiple accounts for email " + email + ", picking the first"
+            );
+        }
+
+        return Optional.of(accounts.get(0));
     }
 }

@@ -23,7 +23,8 @@ public class GeminiService {
         String userPostContent = post.getBody() != null ? post.getBody() : "";
         String fullPrompt = String.format(
                 "You are an expert tutor. Provide a helpful, concise, and encouraging reply " +
-                        "to the following student post:\n\n%s",
+                        "to the following student post:\n\n%s " +
+                        "Responses should be aim to be a one and done reply that answers the post",
                 userPostContent
         );
 

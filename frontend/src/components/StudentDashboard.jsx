@@ -8,7 +8,9 @@ import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
 
-const StudentDashboard = () => {
+const API_BASE = "https://cs484-project-ci-cd.onrender.com";
+
+const StudentDashboard = ({ onLogout, userName }) => {
 
 
 const normalizePosts = (apiPosts) =>
@@ -19,13 +21,25 @@ const normalizePosts = (apiPosts) =>
 
     const created = p.createdAt ? new Date(p.createdAt) : null;
 
-    const followups = (p.replies || []).map((r) => ({
-      author: r.author
-        ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-        : 'Unknown',
-      time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
-      content: r.body,
-    }));
+    const followups = (p.replies || []).map((r) => {
+      const isLLMReply = Boolean(r.llmGenerated);
+
+
+      const authorName = isLLMReply
+        ? 'AI Tutor'
+        : (r.author
+            ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
+            : 'Unknown');
+
+      return {
+        id: r.id,
+        author: authorName,
+        parentReplyId: r.parentReplyId ?? null,
+        isLLMReply,
+        time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
+        content: r.body,
+      };
+    });
 
     return {
       id: p.id,
@@ -45,10 +59,12 @@ const normalizePosts = (apiPosts) =>
       isUnread: false,
       upvotes: p.upVotes ?? 0,
       views: 0,
+      LLMGeneratedAnswer: p.LLMGeneratedAnswerText,
       studentAnswer: p.studentAnswerText,
-      followups,              
+      followups,
     };
   });
+
 
 
 
@@ -89,7 +105,7 @@ const normalizePosts = (apiPosts) =>
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const response = await axios.get('/api/posts');
+        const response = await axios.get(`${API_BASE}/api/posts`);
         const normalizedPosts = normalizePosts(response.data);
         setPosts(normalizedPosts);
       } catch (err) {
@@ -103,9 +119,9 @@ const normalizePosts = (apiPosts) =>
 
   const handleLLMReply = async (postId, text) => {
     try {
-      await axios.post(`/api/posts/${postId}/LLMReply`, { body: text });
+      await axios.post(`${API_BASE}/api/posts/${postId}/LLMReply`, { body: text }, { withCredentials: true });
 
-      const res = await axios.get('/api/posts');
+      const res = await axios.get(`${API_BASE}/api/posts`);
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
@@ -119,11 +135,11 @@ const normalizePosts = (apiPosts) =>
     }
   };
 
-  const handleFollowupSubmit = async (postId, text) => {
+  const handleFollowupSubmit = async (postId, text, parentReplyId = null) => {
     try {
-      await axios.post(`/api/posts/${postId}/replies`, { body: text });
+      await axios.post(`${API_BASE}/api/posts/${postId}/replies`, { body: text, parentReplyId }, { withCredentials: true });
 
-      const res = await axios.get('/api/posts');
+      const res = await axios.get(`${API_BASE}/api/posts`);
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
@@ -139,7 +155,7 @@ const normalizePosts = (apiPosts) =>
 
   const handleNewPostSubmit = async (title, body) => {
     try {
-      const response = await axios.post(`/api/posts`, { title, body });
+      const response = await axios.post(`${API_BASE}/api/posts`, { title, body }, { withCredentials: true });
 
       const newPost = normalizePosts([response.data])[0]; 
 
@@ -206,9 +222,12 @@ const normalizePosts = (apiPosts) =>
   };
 
   const handleLogout = () => {
-    console.log('Logging out');
-    // In a real app, this would clear session and redirect to login
-    window.location.reload();
+    if (onLogout) {
+      onLogout();
+    } else {
+      console.log('Logging out');
+      window.location.reload();
+    }
   };
 
   // Filter posts based on selected filter
@@ -282,13 +301,13 @@ const normalizePosts = (apiPosts) =>
         </div>
         <div className="header-right">
           <div className="user-info" style={{ position: 'relative' }}>
-            <span>Tommy Kang</span>
+            <span>{userName || 'User'}</span>
             <div 
               className="user-avatar" 
               onClick={() => setShowUserDropdown(!showUserDropdown)}
               style={{ cursor: 'pointer' }}
             >
-              TK
+              {(userName || 'U').charAt(0).toUpperCase()}
             </div>
             <UserDropdown 
               isOpen={showUserDropdown}
@@ -296,7 +315,7 @@ const normalizePosts = (apiPosts) =>
               onAccountSettings={handleAccountSettings}
               onJoinClass={handleJoinAnotherClass}
               onLogout={handleLogout}
-              userName="Tommy Kang"
+              userName={userName || 'User'}
             />
           </div>
         </div>
@@ -454,7 +473,7 @@ const normalizePosts = (apiPosts) =>
           ) : selectedPost ? (
             <PostView
               post={selectedPost}
-              currentUser="Tommy Kang"
+              currentUser={userName || 'User'}
               onBack={() => setSelectedPost(null)}
               onLLMReply={handleLLMReply}
               onFollowupSubmit={handleFollowupSubmit}

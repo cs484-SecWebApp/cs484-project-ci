@@ -7,8 +7,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface AccountRepository extends JpaRepository<Account, Long> {
-    Optional<Account> findOneByEmailIgnoreCase(String email);
-
+    List<Account> findByEmailIgnoreCase(String email);
     boolean existsByEmailIgnoreCase(String email);
 
     List<Account> findByAuthorities_Name(String name);

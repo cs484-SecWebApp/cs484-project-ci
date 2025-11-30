@@ -1,24 +1,19 @@
 import React, { useState } from 'react';
-import './PostView.css';
+import './InstructorPostView.css';
 
-const PostView = ({
+const InstructorPostView = ({
   post,
   currentUser,
   onBack,
   onLLMReply,
-  onFollowupSubmit,
+  onInstructorReply,
+  onEndorse,
 }) => {
   const [upvoted, setUpvoted] = useState(false);
   const [starred, setStarred] = useState(false);
+  const [instructorReplyText, setInstructorReplyText] = useState('');
   const [followupText, setFollowupText] = useState('');
-  const [followupAuthor, setFollowupAuthor] = useState(post.followupAuthor || '');
   const [isAILoading, setIsAILoading] = useState(false);
-
-  const [replyingToId, setReplyingToId] = useState(null);
-  const [replyingToAuthor, setReplyingToAuthor] = useState(null);
-
-  const isMyPost = post.author === currentUser;
-  const followups = post.followups || [];
 
   const handleUpvote = () => {
     setUpvoted(!upvoted);
@@ -41,9 +36,7 @@ const PostView = ({
   const handleAIAssist = async () => {
     setIsAILoading(true);
     try {
-      await onLLMReply(post.id, followupText);
-      setFollowupAuthor('🤖');
-      setFollowupText('');
+      await onLLMReply(post.id);
     } catch (err) {
       console.error(err);
     } finally {
@@ -51,76 +44,34 @@ const PostView = ({
     }
   };
 
-  const handleFollowupSubmit = async () => {
-    if (!followupText.trim()) return;
+  const handleInstructorReplySubmit = async () => {
+    if (!instructorReplyText.trim()) return;
+    
     try {
-      await onFollowupSubmit(post.id, followupText, replyingToId);
-      setFollowupAuthor(currentUser);
-      setFollowupText('');
-      setReplyingToId(null);
-      setReplyingToAuthor(null);
+      await onInstructorReply(post.id, instructorReplyText);
+      setInstructorReplyText('');
     } catch (err) {
       console.error(err);
     }
   };
 
-  const buildReplyingTo = (replies) => {
-    const map = new Map();
-    replies.forEach(r => map.set(r.id, { ...r, children: [] }));
+  const handleFollowupSubmit = async () => {
+    if (!followupText.trim()) return;
+    
+    try {
+      await onInstructorReply(post.id, followupText);
+      setFollowupText('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
-    const roots = [];
-    map.forEach((reply) => {
-      if (reply.parentReplyId) {
-        const parent = map.get(reply.parentReplyId);
-        if (parent) {
-          parent.children.push(reply);
-        }
-        else {
-          roots.push(reply);
-        }
-      } else {
-        roots.push(reply);
-      }
-    });
-    return roots;
-  }; 
-
-  const replyTree = buildReplyingTo(followups);
-
-  const renderReplies = (nodes, depth = 0) =>
-    nodes.map((followup) => (
-      <div
-      key={followup.id}
-      className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''}`}
-      style={{ marginLeft: depth * 24 }}
-      >
-      <div className="followup-meta">
-        <span className="followup-author">
-          {followup.isLLMReply ? 'AI Tutor' : followup.author}
-          </span>
-        <span className="followup-time">{followup.time}</span>
-      </div>
-      <div className="followup-content">{followup.content}</div>
-
-       <button
-        className="reply-btn"
-        onClick={() => {
-          setReplyingToId(followup.id);
-          setReplyingToAuthor(
-            followup.isLLMReply ? 'AI Tutor' : followup.author
-          );
-        }}
-      >
-        Reply
-      </button>
-      
-      {followup.children && followup.children.length > 0 &&
-        renderReplies(followup.children, depth + 1)}
-      </div>
-    ))
+  const handleEndorseClick = (replyId) => {
+    onEndorse(post.id, replyId);
+  };
 
   return (
-    <div className="post-view">
+    <div className="instructor-post-view">
       {/* Breadcrumb Navigation */}
       <div className="post-nav">
         <button className="back-btn" onClick={onBack}>←</button>
@@ -152,10 +103,9 @@ const PostView = ({
       </div>
 
       {/* Post Content */}
-      <div
-        className="post-body"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
+      <div className="post-body">
+        {post.content}
+      </div>
 
       {/* Post Tags */}
       {post.tags && post.tags.length > 0 && (
@@ -168,11 +118,9 @@ const PostView = ({
 
       {/* Post Actions */}
       <div className="post-actions">
-        {isMyPost && (
-          <button className="action-btn edit-btn" onClick={handleEdit}>
-            <span className="edit-icon">✎</span> Edit
-          </button>
-        )}
+        <button className="action-btn edit-btn" onClick={handleEdit}>
+          <span className="edit-icon">✎</span> Edit
+        </button>
         <button 
           className={`action-btn upvote-btn ${upvoted ? 'active' : ''}`} 
           onClick={handleUpvote}
@@ -185,9 +133,7 @@ const PostView = ({
         >
           <span className="star-icon">{starred ? '★' : '☆'}</span>
         </button>
-        <button 
-          className="action-btn bookmark-btn"
-        >
+        <button className="action-btn bookmark-btn">
           <span className="bookmark-icon">📖</span>
         </button>
         <button className="action-btn link-btn" onClick={handleCopyLink}>
@@ -224,15 +170,32 @@ const PostView = ({
           Where students collectively construct a single answer
         </div>
         
-        {post.studentAnswer ? (
+        {post.studentReplies && post.studentReplies.length > 0 ? (
           <div className="answers-list">
-            <div className="answer-item">
-              <div className="answer-content">{post.studentAnswer}</div>
-            </div>
+            {post.studentReplies.map((reply, index) => (
+              <div key={reply.id || index} className="answer-item">
+                <div className="answer-meta">
+                  <span className="answer-author">{reply.author}</span>
+                  <span className="answer-time">{reply.time}</span>
+                </div>
+                <div className="answer-content">{reply.content}</div>
+                <div className="answer-actions">
+                  <button 
+                    className={`endorse-btn ${reply.endorsed ? 'endorsed' : ''}`}
+                    onClick={() => handleEndorseClick(reply.id)}
+                  >
+                    {reply.endorsed ? '✓ Endorsed by Instructor' : 'Endorse'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="empty-answer">
-            Click to start off the wiki answer
+            <textarea
+              className="answer-input"
+              placeholder="Click to start off the wiki answer"
+            />
           </div>
         )}
       </div>
@@ -244,27 +207,47 @@ const PostView = ({
           <h2 className="section-title">Instructors' Answer</h2>
         </div>
         <div className="section-subtitle">
-          Updated by instructor
+          Updated {post.instructorReplies && post.instructorReplies.length > 0
+            ? post.instructorReplies[post.instructorReplies.length - 1].time 
+            : 'never'} by {post.instructorReplies && post.instructorReplies.length > 0
+              ? post.instructorReplies[post.instructorReplies.length - 1].author 
+              : 'instructor'}
         </div>
 
-        {post.instructorAnswer ? (
+        {post.instructorReplies && post.instructorReplies.length > 0 ? (
           <div className="answers-list">
-            <div className="answer-item">
-              <div className="answer-content">{post.instructorAnswer}</div>
-            </div>
+            {post.instructorReplies.map((reply, index) => (
+              <div key={reply.id || index} className="answer-item">
+                <div className="answer-meta">
+                  <span className="answer-author">{reply.author}</span>
+                  <span className="answer-time">{reply.time}</span>
+                </div>
+                <div className="answer-content">{reply.content}</div>
+              </div>
+            ))}
           </div>
         ) : (
-          <div className="empty-answer">
-            No instructor answer yet
+          <div className="answer-input-container">
+            <textarea
+              className="answer-input"
+              placeholder="Write your instructor answer here..."
+              value={instructorReplyText}
+              onChange={(e) => setInstructorReplyText(e.target.value)}
+            />
+            {instructorReplyText && (
+              <button className="submit-answer-btn" onClick={handleInstructorReplySubmit}>
+                Post Instructor Answer
+              </button>
+            )}
           </div>
         )}
       </div>
 
-      {/* AI Answer Section - Only show if there is an AI answer */}
-      {post.aiAnswer && (
+      {/* AI Answer Section - Only show if there are AI replies */}
+      {post.aiReplies && post.aiReplies.length > 0 && (
         <div className="answer-section ai-answer-section">
           <div className="section-header">
-            <div className="section-icon ai-icon-section">🤖</div>
+            <div className="section-icon ai-icon">🤖</div>
             <h2 className="section-title">AI-Generated Answer</h2>
           </div>
           <div className="section-subtitle">
@@ -272,9 +255,23 @@ const PostView = ({
           </div>
           
           <div className="answers-list">
-            <div className="answer-item ai-answer">
-              <div className="answer-content">{post.aiAnswer}</div>
-            </div>
+            {post.aiReplies.map((reply, index) => (
+              <div key={reply.id || index} className="answer-item ai-answer">
+                <div className="answer-meta">
+                  <span className="answer-author">Unknown</span>
+                  <span className="answer-time">{reply.time}</span>
+                </div>
+                <div className="answer-content">{reply.content}</div>
+                <div className="answer-actions">
+                  <button 
+                    className={`endorse-btn ${reply.endorsed ? 'endorsed' : ''}`}
+                    onClick={() => handleEndorseClick(reply.id)}
+                  >
+                    {reply.endorsed ? '✓ Endorsed by Instructor' : 'Endorse'}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -284,35 +281,27 @@ const PostView = ({
         <div className="section-header followup-header">
           <div className="section-icon followup-icon">💬</div>
           <h2 className="section-title">
-            {followups.length} Followup Discussion{followups.length !== 1 ? 's' : ''}
+            {post.followupDiscussions?.length || 0} Followup Discussion{(post.followupDiscussions?.length || 0) !== 1 ? 's' : ''}
           </h2>        
         </div>
         
-        {/* Existing Followups */}
-        {followups.length > 0 ? (
+        {post.followupDiscussions && post.followupDiscussions.length > 0 ? (
           <div className="followups-list">
-            {renderReplies(replyTree)}
+            {post.followupDiscussions.map((followup, index) => (
+              <div key={index} className="followup-item">
+                <div className="followup-meta">
+                  <span className="followup-author">{followup.author}</span>
+                  <span className="followup-time">{followup.time}</span>
+                </div>
+                <div className="followup-content">{followup.content}</div>
+              </div>
+            ))}
           </div>
         ) : (
           <div className="no-followups">No followup discussions yet</div>
         )}
 
-        {/* New Followup Input */}
         <div className="new-followup">
-          {replyingToId && (
-          <div className="replying-to-banner">
-            Replying to <strong>{replyingToAuthor}</strong>
-            <button
-              className="cancel-reply-btn"
-              onClick={() => {
-                setReplyingToId(null);
-                setReplyingToAuthor(null);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
           <textarea
             className="followup-input"
             placeholder="Compose a new followup discussion"
@@ -330,4 +319,4 @@ const PostView = ({
   );
 };
 
-export default PostView;
+export default InstructorPostView;
