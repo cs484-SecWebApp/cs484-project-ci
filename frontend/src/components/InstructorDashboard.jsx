@@ -105,7 +105,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
   useEffect(() => {
     const fetchPosts = async () => {
       try {
-        const response = await axios.get('https://cs484-project-ci-cd.onrender.com/api/posts', {
+        const response = await axios.get('http://localhost:8080/api/posts', {
           withCredentials: true
         });
         const normalizedPosts = normalizePosts(response.data);
@@ -121,11 +121,11 @@ const InstructorDashboard = ({ onLogout, userName }) => {
 
   const handleLLMReply = async (postId) => {
     try {
-      await axios.post(`https://cs484-project-ci-cd.onrender.com/api/posts/${postId}/LLMReply`, {}, {
+      await axios.post(`http://localhost:8080/api/posts/${postId}/LLMReply`, {}, {
         withCredentials: true
       });
 
-      const res = await axios.get('https://cs484-project-ci-cd.onrender.com/api/posts', {
+      const res = await axios.get('http://localhost:8080/api/posts', {
         withCredentials: true
       });
       const normalized = normalizePosts(res.data);
@@ -143,11 +143,11 @@ const InstructorDashboard = ({ onLogout, userName }) => {
 
   const handleInstructorReply = async (postId, text) => {
     try {
-      await axios.post(`https://cs484-project-ci-cd.onrender.com/api/posts/${postId}/replies`, { body: text }, {
+      await axios.post(`http://localhost:8080/api/posts/${postId}/replies`, { body: text }, {
         withCredentials: true
       });
 
-      const res = await axios.get('https://cs484-project-ci-cd.onrender.com/api/posts', {
+      const res = await axios.get('http://localhost:8080/api/posts', {
         withCredentials: true
       });
       const normalized = normalizePosts(res.data);
@@ -166,12 +166,12 @@ const InstructorDashboard = ({ onLogout, userName }) => {
   const handleEndorseReply = async (postId, replyId) => {
     try {
       await axios.put(
-        `https://cs484-project-ci-cd.onrender.com/api/posts/${postId}/replies/${replyId}/endorse`,
+        `http://localhost:8080/api/posts/${postId}/replies/${replyId}/endorse`,
         {},
         { withCredentials: true }
       );
 
-      const res = await axios.get('https://cs484-project-ci-cd.onrender.com/api/posts', {
+      const res = await axios.get('http://localhost:8080/api/posts', {
         withCredentials: true
       });
       const normalized = normalizePosts(res.data);
@@ -188,7 +188,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
 
   const handleNewPostSubmit = async (title, body) => {
     try {
-      const response = await axios.post(`https://cs484-project-ci-cd.onrender.com/api/posts`, { title, body }, {
+      const response = await axios.post(`http://localhost:8080/api/posts`, { title, body }, {
         withCredentials: true
       });
 

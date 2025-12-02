@@ -504,3 +504,41 @@
   border: 1px dashed #ddd;
   border-radius: 4px;
 }
+
+
+.llm-badge {
+  background-color: #e0f7fa;
+  color: #00796b;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-left: 6px;
+}
+
+.is-LLMReply {
+  margin-right: 6px;
+}
+
+.followup-item.ai-reply {
+  background: #f0f7ff;
+  border-color: #90caf9;
+  box-shadow: 0 0 0 1px rgba(25, 118, 210, 0.2);
+}
+
+.followup-item.ai-reply .followup-author::before {
+  content: "🤖 ";
+}
+
+.followup-item.ai-reply .followup-author {
+  font-weight: 600;
+  color: #1565c0;
+}
+
+.followup-item {
+  background: #ffffff;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-bottom: 8px;
+  border: 1px solid #e0e0e0;
+}

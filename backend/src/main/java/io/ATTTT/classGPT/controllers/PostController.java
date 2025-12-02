@@ -59,6 +59,7 @@ public class PostController {
 //        Account account = accountService.findByEmail(email)
 //                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
+        log.info("createPost principal = {}", principal);
         Account account;
 
         if (principal != null) { //Temp anonymous implementation (will be removed once log in is handled
@@ -137,6 +138,8 @@ public class PostController {
         }
 
         reply.setLlmGenerated(false);
+        reply.setParentReplyId(req.getParentReplyId());
+
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(saved);
     }
@@ -157,6 +160,7 @@ public class PostController {
         reply.setAuthor(null);
         reply.setFromInstructor(false);
         reply.setLlmGenerated(true);
+        reply.setParentReplyId(null);
         
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(saved);
@@ -213,6 +217,7 @@ public class PostController {
                         info.postTitle = post.getTitle();
                         info.generatedAt = reply.getCreatedAt();
                         info.endorsed = reply.isEndorsed();
+                        info.flagged  = reply.isFlagged();
                         info.replyBody = reply.getBody();
                         aiGenerations.add(info);
                     }
@@ -232,9 +237,37 @@ public class PostController {
         return ResponseEntity.ok(stats);
     }
 
+    @PutMapping("/{postId}/replies/{replyId}/flag")
+    public ResponseEntity<Replies> flagReply(@PathVariable Long postId,
+                                             @PathVariable Long replyId,
+                                             Principal principal) {
+
+        Optional<Replies> replyOpt = repliesRepository.findById(replyId);
+        if (replyOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Replies reply = replyOpt.get();
+        if (!reply.getPost().getId().equals(postId)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        if (!reply.isLlmGenerated()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+
+
+        reply.setFlagged(!reply.isFlagged());
+
+        Replies saved = repliesRepository.save(reply);
+        return ResponseEntity.ok(saved);
+    }
+
+
     @Data
     public static class CreateFollowupRequest {
         private String body;
+        private Long parentReplyId;
     }
 
     @Data
@@ -253,6 +286,7 @@ public class PostController {
         public String postTitle;
         public LocalDateTime generatedAt;
         public boolean endorsed;
+        public boolean flagged;
         public String replyBody;
     }
 

@@ -36,7 +36,7 @@ public class WebSecurityConfig {
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .ignoringRequestMatchers(request -> request.getRequestURI().startsWith("/api/"))
                 )
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
@@ -50,12 +50,13 @@ public class WebSecurityConfig {
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/login").permitAll() // Added POST /login
-                        .requestMatchers(HttpMethod.POST, "/api/posts").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/posts").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/statistics").permitAll() // Statistics endpoint
                         .requestMatchers(HttpMethod.PUT, "/api/posts/*/student-answer").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/replies").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/LLMReply").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/flag").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/endorse").permitAll()
                         .anyRequest().authenticated()
                 )

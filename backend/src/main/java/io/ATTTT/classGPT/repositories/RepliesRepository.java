@@ -8,4 +8,6 @@ import java.util.List;
 
 public interface RepliesRepository extends JpaRepository<Replies, Long> {
     List<Replies> findByPost(Post post);
+
+    List<Replies> findByLlmGeneratedTrueAndFlaggedTrueOrderByCreatedAtAsc();
 }
