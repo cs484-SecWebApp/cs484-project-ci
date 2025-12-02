@@ -7,19 +7,26 @@ import com.google.genai.types.GenerateContentResponse;
 import io.ATTTT.classGPT.models.Post;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value; // Import this!
 import org.springframework.stereotype.Service;
 
 @Service
 public class GeminiService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
-
     private static final String MODEL_NAME = "gemini-2.5-flash";
     private static final int MAX_ATTEMPTS = 3;
 
-    private final Client client = new Client();
+    private final Client client;
+
+    public GeminiService(@Value("${spring.ai.google.genai.api-key}") String apiKey) {
+        this.client = Client.builder()
+                .apiKey(apiKey)
+                .build();
+    }
 
     public String generateReply(Post post) {
+
         String userPostContent = post.getBody() != null ? post.getBody() : "";
         String fullPrompt = String.format(
                 "You are an expert tutor. Provide a helpful, concise, and encouraging reply " +
@@ -48,7 +55,6 @@ public class GeminiService {
                 if (attempt >= MAX_ATTEMPTS) {
                     throw e;
                 }
-
                 sleepQuietly(500L * attempt);
 
             } catch (ApiException e) {
