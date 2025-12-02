@@ -8,7 +8,7 @@ import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
 
-const API_BASE = "https://cs484-project-ci-cd.onrender.com";
+const API_BASE = 'http://localhost:8080';
 
 const StudentDashboard = ({ onLogout, userName }) => {
 

@@ -18,7 +18,7 @@ function App() {
   
 const checkAuthStatus = async () => {
   try {
-    const response = await fetch(`https://cs484-project-ci-cd.onrender.com/api/auth/me`, {
+    const response = await fetch(`'http://localhost:8080'/api/auth/me`, {
       credentials: 'include',
     });
 
@@ -50,7 +50,7 @@ const checkAuthStatus = async () => {
   const handleLogin = async (userData) => {
     try {
       const response = await fetch(
-        'https://cs484-project-ci-cd.onrender.com/api/auth/login',
+        'http://localhost:8080/api/auth/login',
         {
           method: 'POST',
           headers: {
@@ -114,7 +114,7 @@ const checkAuthStatus = async () => {
 
   const handleRegister = async (userData) => {
     try {
-      const response = await fetch('https://cs484-project-ci-cd.onrender.com/api/auth/register', {
+      const response = await fetch('http://localhost:8080/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -155,7 +155,7 @@ const checkAuthStatus = async () => {
 
   const handleLogout = async () => {
     try {
-      await fetch('https://cs484-project-ci-cd.onrender.com/logout', {
+      await fetch('http://localhost:8080/logout', {
         method: 'POST',
         credentials: 'include'
       });

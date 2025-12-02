@@ -43,9 +43,23 @@ public class Replies {
     
     private boolean endorsed;
 
+    @Column(name = "parent_reply_id")
+    private Long parentReplyId;
+
     @PrePersist
     protected void onCreate(){
         createdAt = LocalDateTime.now();
+    }
+
+    @Column(nullable = false)
+    private boolean flagged = false;
+
+    public boolean isFlagged() {
+        return flagged;
+    }
+
+    public void setFlagged(boolean flagged) {
+        this.flagged = flagged;
     }
 
 }

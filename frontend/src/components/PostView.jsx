@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './PostView.css';
+import ChatWidget from './ChatWidget';
 
 const PostView = ({
   post,
@@ -17,15 +18,27 @@ const PostView = ({
   const [replyingToId, setReplyingToId] = useState(null);
   const [replyingToAuthor, setReplyingToAuthor] = useState(null);
 
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatAiReply, setChatAiReply] = useState(null);
+
   const isMyPost = post.author === currentUser;
   const followups = post.followups || [];
 
-  const handleUpvote = () => {
-    setUpvoted(!upvoted);
-  };
+  const handleUpvote = () => setUpvoted(!upvoted);
+  const handleStar = () => setStarred(!starred);
 
-  const handleStar = () => {
-    setStarred(!starred);
+  const handleFlagReply = async (replyId) => {
+    try {
+      await fetch(`/api/posts/${post.id}/replies/${replyId}/flag`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+
+      alert('Flagged for instructor review.');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to flag reply');
+    }
   };
 
   const handleCopyLink = () => {
@@ -66,7 +79,7 @@ const PostView = ({
 
   const buildReplyingTo = (replies) => {
     const map = new Map();
-    replies.forEach(r => map.set(r.id, { ...r, children: [] }));
+    replies.forEach((r) => map.set(r.id, { ...r, children: [] }));
 
     const roots = [];
     map.forEach((reply) => {
@@ -74,8 +87,7 @@ const PostView = ({
         const parent = map.get(reply.parentReplyId);
         if (parent) {
           parent.children.push(reply);
-        }
-        else {
+        } else {
           roots.push(reply);
         }
       } else {
@@ -83,47 +95,72 @@ const PostView = ({
       }
     });
     return roots;
-  }; 
+  };
 
   const replyTree = buildReplyingTo(followups);
 
   const renderReplies = (nodes, depth = 0) =>
     nodes.map((followup) => (
       <div
-      key={followup.id}
-      className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''}`}
-      style={{ marginLeft: depth * 24 }}
+        key={followup.id}
+        className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''}`}
+        style={{ marginLeft: depth * 24 }}
       >
-      <div className="followup-meta">
-        <span className="followup-author">
-          {followup.isLLMReply ? 'AI Tutor' : followup.author}
+        <div className="followup-meta">
+          <span className="followup-author">
+            {followup.isLLMReply ? 'AI Tutor' : followup.author}
           </span>
-        <span className="followup-time">{followup.time}</span>
-      </div>
-      <div className="followup-content">{followup.content}</div>
+          <span className="followup-time">{followup.time}</span>
+        </div>
 
-       <button
-        className="reply-btn"
-        onClick={() => {
-          setReplyingToId(followup.id);
-          setReplyingToAuthor(
-            followup.isLLMReply ? 'AI Tutor' : followup.author
-          );
-        }}
-      >
-        Reply
-      </button>
-      
-      {followup.children && followup.children.length > 0 &&
-        renderReplies(followup.children, depth + 1)}
+        <div className="followup-content">{followup.content}</div>
+
+        <button
+          className="reply-btn"
+          onClick={() => {
+            setReplyingToId(followup.id);
+            setReplyingToAuthor(
+              followup.isLLMReply ? 'AI Tutor' : followup.author
+            );
+          }}
+        >
+          Reply
+        </button>
+
+        {followup.isLLMReply && (
+          <>
+            <button
+              className="flag-btn"
+              onClick={() => handleFlagReply(followup.id)}
+            >
+              🚩 Flag for Instructor
+            </button>
+
+            <button
+              className="discuss-more"
+              onClick={() => {
+                setChatAiReply(followup.content);
+                setIsChatOpen(true);
+              }}
+            >
+              Let's talk more
+            </button>
+          </>
+        )}
+
+        {followup.children &&
+          followup.children.length > 0 &&
+          renderReplies(followup.children, depth + 1)}
       </div>
-    ))
+    ));
 
   return (
     <div className="post-view">
       {/* Breadcrumb Navigation */}
       <div className="post-nav">
-        <button className="back-btn" onClick={onBack}>←</button>
+        <button className="back-btn" onClick={onBack}>
+          ←
+        </button>
         <button className="history-btn">
           <span className="clock-icon">🕐</span> Question History
         </button>
@@ -148,7 +185,9 @@ const PostView = ({
 
       {/* Post Meta */}
       <div className="post-meta-info">
-        <span className="post-updated">Updated {post.updatedAt} by {post.author}</span>
+        <span className="post-updated">
+          Updated {post.updatedAt} by {post.author}
+        </span>
       </div>
 
       {/* Post Content */}
@@ -161,7 +200,9 @@ const PostView = ({
       {post.tags && post.tags.length > 0 && (
         <div className="post-tags">
           {post.tags.map((tag, index) => (
-            <span key={index} className="post-tag">{tag}</span>
+            <span key={index} className="post-tag">
+              {tag}
+            </span>
           ))}
         </div>
       )}
@@ -173,27 +214,26 @@ const PostView = ({
             <span className="edit-icon">✎</span> Edit
           </button>
         )}
-        <button 
-          className={`action-btn upvote-btn ${upvoted ? 'active' : ''}`} 
+        <button
+          className={`action-btn upvote-btn ${upvoted ? 'active' : ''}`}
           onClick={handleUpvote}
         >
-          <span className="thumbs-up-icon">👍</span> {post.upvotes + (upvoted ? 1 : 0)}
+          <span className="thumbs-up-icon">👍</span>{' '}
+          {post.upvotes + (upvoted ? 1 : 0)}
         </button>
-        <button 
-          className={`action-btn star-btn ${starred ? 'active' : ''}`} 
+        <button
+          className={`action-btn star-btn ${starred ? 'active' : ''}`}
           onClick={handleStar}
         >
           <span className="star-icon">{starred ? '★' : '☆'}</span>
         </button>
-        <button 
-          className="action-btn bookmark-btn"
-        >
+        <button className="action-btn bookmark-btn">
           <span className="bookmark-icon">📖</span>
         </button>
         <button className="action-btn link-btn" onClick={handleCopyLink}>
           <span className="link-icon">🔗</span>
         </button>
-        <button 
+        <button
           className={`action-btn ai-btn ${isAILoading ? 'loading' : ''}`}
           onClick={handleAIAssist}
           disabled={isAILoading}
@@ -223,7 +263,7 @@ const PostView = ({
         <div className="section-subtitle">
           Where students collectively construct a single answer
         </div>
-        
+
         {post.studentAnswer ? (
           <div className="answers-list">
             <div className="answer-item">
@@ -231,9 +271,7 @@ const PostView = ({
             </div>
           </div>
         ) : (
-          <div className="empty-answer">
-            Click to start off the wiki answer
-          </div>
+          <div className="empty-answer">Click to start off the wiki answer</div>
         )}
       </div>
 
@@ -243,9 +281,7 @@ const PostView = ({
           <div className="section-icon instructor-icon">I</div>
           <h2 className="section-title">Instructors' Answer</h2>
         </div>
-        <div className="section-subtitle">
-          Updated by instructor
-        </div>
+        <div className="section-subtitle">Updated by instructor</div>
 
         {post.instructorAnswer ? (
           <div className="answers-list">
@@ -254,9 +290,7 @@ const PostView = ({
             </div>
           </div>
         ) : (
-          <div className="empty-answer">
-            No instructor answer yet
-          </div>
+          <div className="empty-answer">No instructor answer yet</div>
         )}
       </div>
 
@@ -270,7 +304,7 @@ const PostView = ({
           <div className="section-subtitle">
             Generated by Gemini AI assistant
           </div>
-          
+
           <div className="answers-list">
             <div className="answer-item ai-answer">
               <div className="answer-content">{post.aiAnswer}</div>
@@ -284,15 +318,14 @@ const PostView = ({
         <div className="section-header followup-header">
           <div className="section-icon followup-icon">💬</div>
           <h2 className="section-title">
-            {followups.length} Followup Discussion{followups.length !== 1 ? 's' : ''}
-          </h2>        
+            {followups.length} Followup Discussion
+            {followups.length !== 1 ? 's' : ''}
+          </h2>
         </div>
-        
+
         {/* Existing Followups */}
         {followups.length > 0 ? (
-          <div className="followups-list">
-            {renderReplies(replyTree)}
-          </div>
+          <div className="followups-list">{renderReplies(replyTree)}</div>
         ) : (
           <div className="no-followups">No followup discussions yet</div>
         )}
@@ -300,19 +333,20 @@ const PostView = ({
         {/* New Followup Input */}
         <div className="new-followup">
           {replyingToId && (
-          <div className="replying-to-banner">
-            Replying to <strong>{replyingToAuthor}</strong>
-            <button
-              className="cancel-reply-btn"
-              onClick={() => {
-                setReplyingToId(null);
-                setReplyingToAuthor(null);
-              }}
-            >
-              ×
-            </button>
-          </div>
-        )}
+            <div className="replying-to-banner">
+              Replying to <strong>{replyingToAuthor}</strong>
+              <button
+                className="cancel-reply-btn"
+                onClick={() => {
+                  setReplyingToId(null);
+                  setReplyingToAuthor(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           <textarea
             className="followup-input"
             placeholder="Compose a new followup discussion"
@@ -320,12 +354,24 @@ const PostView = ({
             onChange={(e) => setFollowupText(e.target.value)}
           />
           {followupText && (
-            <button className="submit-followup-btn" onClick={handleFollowupSubmit}>
+            <button
+              className="submit-followup-btn"
+              onClick={handleFollowupSubmit}
+            >
               Post Followup
             </button>
           )}
         </div>
       </div>
+
+      {/* LLM chat widget for "Let's talk more" */}
+      {isChatOpen && chatAiReply && (
+        <ChatWidget
+          post={post}
+          aiReply={chatAiReply}
+          onClose={() => setIsChatOpen(false)}
+        />
+      )}
     </div>
   );
 };

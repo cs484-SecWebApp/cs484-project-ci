@@ -29,7 +29,7 @@ const StatisticsPage = ({ posts, onBack }) => {
       setLoading(true);
       
       // Fetch AI statistics from backend
-      const response = await axios.get('https://cs484-project-ci-cd.onrender.com/api/posts/statistics', {
+      const response = await axios.get('http://localhost:8080/api/posts/statistics', {
         withCredentials: true
       });
       
