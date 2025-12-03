@@ -2,8 +2,10 @@ package io.ATTTT.classGPT.config;
 
 import io.ATTTT.classGPT.models.Account;
 import io.ATTTT.classGPT.models.Authority;
+import io.ATTTT.classGPT.models.Course;
 import io.ATTTT.classGPT.models.Post;
 import io.ATTTT.classGPT.repositories.AuthorityRepository;
+import io.ATTTT.classGPT.repositories.CourseRepository;
 import io.ATTTT.classGPT.services.AccountService;
 import io.ATTTT.classGPT.services.PostService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ public class SeedData implements CommandLineRunner {
     private final PostService postService;
     private final AccountService accountService;
     private final AuthorityRepository authorityRepository;
+    private final CourseRepository courseRepo;
 
     @Override
     public void run(String...args) throws Exception{
@@ -60,18 +63,39 @@ public class SeedData implements CommandLineRunner {
             accountService.save(account1);
             accountService.save(account2);
 
-            Post post1 = new Post();
-            post1.setTitle("title of post 1");
-            post1.setBody("This is the body of post 1");
-            post1.setAccount(account1);
+            Account instructor = account2;
 
-            Post post2 = new Post();
-            post2.setTitle("title of post 2");
-            post2.setBody("This is the body of post 2");
-            post2.setAccount(account2);
+            Course cs484 = new Course();
+            cs484.setCode("CS 484");
+            cs484.setName("Secure Web Application Development");
+            cs484.setTerm("Fall 2025");
+            cs484.setOwner(instructor);
+            cs484.setJoinCode("DEMO484");
+            cs484 = courseRepo.save(cs484);
 
-            postService.save(post1);
-            postService.save(post2);
+            Post p1 = new Post();
+            p1.setTitle("Welcome to CS 484");
+            p1.setBody("Ask your questions here!");
+            p1.setAccount(instructor);
+            p1.setCourse(cs484);
+
+
+            Course cs425 = new Course();
+            cs425.setCode("CS 425");
+            cs425.setName("Computer Graphics");
+            cs425.setTerm("Fall 2025");
+            cs425.setOwner(instructor);
+            cs425.setJoinCode("DEMO425");
+            cs425 = courseRepo.save(cs425);
+
+            Post p2 = new Post();
+            p2.setTitle("Welcome to CS 425");
+            p2.setBody("Ask your questions here!");
+            p2.setAccount(instructor);
+            p2.setCourse(cs425);
+
+            postService.save(p1);
+            postService.save(p2);
         }
     }
 

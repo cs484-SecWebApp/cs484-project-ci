@@ -1,8 +1,10 @@
 package io.ATTTT.classGPT.config;
 
+import io.ATTTT.classGPT.models.Post;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,6 +17,8 @@ import static org.springframework.security.config.Customizer.withDefaults;
 
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+
+import java.util.List;
 
 
 @Configuration
@@ -34,7 +38,11 @@ public class WebSecurityConfig {
                 .cors(withDefaults())
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers(request -> request.getRequestURI().startsWith("/api/"))
+                        .ignoringRequestMatchers(request -> {
+                            String uri = request.getRequestURI();
+                            return uri.startsWith("/api/")
+                                    || uri.startsWith("/h2-console");
+                        })
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
@@ -45,6 +53,7 @@ public class WebSecurityConfig {
                     response.getWriter().flush();
                 }))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
@@ -93,7 +102,8 @@ public class WebSecurityConfig {
                             response.getWriter().flush();
                         })
                         .permitAll()
-                );
+                )
+                .headers(headers -> headers.frameOptions(frame -> frame.disable()));
                 // No httpBasic - prevents browser popup
                 // OAuth2 can be added later with .oauth2Login() without conflicts
 

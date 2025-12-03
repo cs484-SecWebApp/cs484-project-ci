@@ -542,3 +542,100 @@
   margin-bottom: 8px;
   border: 1px solid #e0e0e0;
 }
+
+.reply-btn,
+.flag-btn,
+.discuss-more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+
+  padding: 4px 10px;
+  margin-top: 6px;
+  margin-right: 6px;
+
+  border-radius: 999px;
+  border: 1px solid #d0d4e4;
+  background-color: #f8fafc;
+  color: #1f2937;
+
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.05s ease;
+}
+
+.reply-btn:hover,
+.flag-btn:hover,
+.discuss-more:hover {
+  background-color: #e5edff;
+  border-color: #c7d2fe;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.15);
+  transform: translateY(-0.5px);
+}
+
+.reply-btn:active,
+.flag-btn:active,
+.discuss-more:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Variants */
+.reply-btn {
+  background-color: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.flag-btn {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.flag-btn:hover {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.discuss-more {
+  background-color: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #047857;
+}
+
+.discuss-more:hover {
+  background-color: #dcfce7;
+  border-color: #86efac;
+}
+
+
+.followup-item button {
+  white-space: nowrap;
+}
+
+
+
+.followup-item .followup-content {
+  display: block;
+  margin-bottom: 10px;  
+}
+
+
+.followup-item .reply-btn,
+.followup-item .flag-btn,
+.followup-item .discuss-more {
+  margin-top: 4px;      
+}
+
+.followups-list .followup-item {
+  padding: 8px 12px 10px;
+}

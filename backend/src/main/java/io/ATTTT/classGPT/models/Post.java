@@ -79,5 +79,8 @@ public class Post{
         modifiedAt = LocalDateTime.now();
     }
 
+    @ManyToOne(optional = false)
+    private Course course;
+
 
 }

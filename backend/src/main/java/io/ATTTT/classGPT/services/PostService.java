@@ -27,6 +27,10 @@ public class PostService {
         return postRepository.findAll();
     }
 
+    public List<Post> getPostsForCourse(Long courseId) {
+        return postRepository.findByCourseIdOrderByCreatedAtDesc(courseId);
+    }
+
     public Post save(Post post){
         if (post.getId() == null) {
             // only when creating
