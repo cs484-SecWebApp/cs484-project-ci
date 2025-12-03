@@ -12,4 +12,7 @@ import java.util.List;
 public interface PostRepository extends JpaRepository<Post, Long> {
     List<Post> findByAccount_Id(Long accountId);
     Page<Post> findAllByOrderByCreatedAtDesc(Pageable pageable);
+
+    List<Post> findByCourseIdOrderByCreatedAtDesc(Long courseId);
+
 }

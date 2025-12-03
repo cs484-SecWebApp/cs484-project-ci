@@ -55,4 +55,34 @@ public class FileService {
             throw new RuntimeException("Error: " + mex.getMessage(), mex);
         }
     }
+
+    public Resource loadAsResource(String key) {
+        // currently key == filename
+        return load(key);
+    }
+
+    public String storeCourseFile(Long courseId, MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is empty");
+        }
+
+        // for now, we just use the original filename as the key
+        String storageKey = file.getOriginalFilename();
+
+        Files.copy(file.getInputStream(), this.root.resolve(storageKey));
+        return storageKey;
+    }
+
+    public void deleteFile(String storageKey) {
+        if (storageKey == null || storageKey.isBlank()) {
+            return; // nothing to delete
+        }
+
+        try {
+            Path file = root.resolve(storageKey);
+            Files.deleteIfExists(file);
+        } catch (IOException ex) {
+            throw new RuntimeException("Error deleting file: " + storageKey, ex);
+        }
+    }
 }

@@ -1,23 +1,27 @@
 package io.ATTTT.classGPT.controllers;
 
+import io.ATTTT.classGPT.dto.PostSummary;
 import io.ATTTT.classGPT.models.Account;
 import io.ATTTT.classGPT.models.Post;
 import io.ATTTT.classGPT.models.Replies;
 import io.ATTTT.classGPT.repositories.RepliesRepository;
 import io.ATTTT.classGPT.services.AccountService;
+import io.ATTTT.classGPT.services.EnrollmentService;
 import io.ATTTT.classGPT.services.GeminiService;
 import io.ATTTT.classGPT.services.PostService;
+import io.ATTTT.classGPT.services.CourseService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+
+import io.ATTTT.classGPT.dto.PostSummary;
+import io.ATTTT.classGPT.dto.ReplySummary;
+
 
 import java.security.Principal;
 import java.time.LocalDateTime;
@@ -36,63 +40,79 @@ public class PostController {
     private final GeminiService geminiService;
     private final AccountService accountService;
     private final RepliesRepository repliesRepository;
+    private final EnrollmentService enrollmentService;
+    private final CourseService courseService;
+
+    private PostSummary toPostSummary(Post p) {
+        var course = p.getCourse();
+        var author = p.getAccount();
+        int replyCount = (p.getReplies() != null) ? p.getReplies().size() : 0;
+
+        return new PostSummary(
+                p.getId(),
+                p.getTitle(),
+                p.getBody(),
+                course != null ? course.getId()   : null,
+                course != null ? course.getCode() : null,
+                course != null ? course.getName() : null,
+                author != null ? author.getId()   : null,
+                author != null ? author.getFirstName() : null,
+                author != null ? author.getLastName()  : null,
+                p.getCreatedAt(),
+                replyCount
+        );
+    }
+
+    private ReplySummary toReplySummary(Replies r) {
+        var author = r.getAuthor();
+        return new ReplySummary(
+                r.getId(),
+                r.getBody(),
+                r.isFromInstructor(),
+                r.isLlmGenerated(),
+                r.isEndorsed(),
+                r.isFlagged(),
+                r.getParentReplyId(),
+                author != null ? author.getId() : null,
+                author != null ? (author.getFirstName() + " " + author.getLastName()) : null,
+                r.getCreatedAt()
+        );
+    }
 
 
     @GetMapping
-    public List<Post> getAllPosts() {
-        return postService.getAll();
+    public List<PostSummary> getAllPosts() {
+        return postService.getAll()
+                .stream()
+                .map(this::toPostSummary)
+                .toList();
     }
 
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Post> getPost(@PathVariable Long id){
-        return postService.getById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
 
-    @PostMapping
-//    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Post> createPost(@RequestBody Post incoming,
-                                           Principal principal) {
-//        String email = principal.getName();
-//        Account account = accountService.findByEmail(email)
-//                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+    @GetMapping("/classes/{courseId}")
+    public List<Post> getPostsForCourse(@PathVariable Long courseId, Principal principal) {
+        Account me = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
-        log.info("createPost principal = {}", principal);
-        Account account;
-
-        if (principal != null) { //Temp anonymous implementation (will be removed once log in is handled
-            String email = principal.getName();
-            account = accountService.findByEmail(email)
-                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
-        } else {
-            // fallback demo user
-            account = accountService.findByEmail("user.user@domain.com")
-                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        if (!enrollmentService.isEnrolled(me.getId(), courseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
-        Post post = new Post();
-        post.setTitle(incoming.getTitle());
-        post.setBody(incoming.getBody());
-        post.setAccount(account);
-
-        Post saved = postService.save(post);
-        return ResponseEntity.ok(saved);
+        return postService.getPostsForCourse(courseId);
     }
 
 
     @PutMapping("/{id}")
-//    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Post> updatePost(@PathVariable Long id,
-                                           @RequestBody Post incoming) {
+    public ResponseEntity<PostSummary> updatePost(@PathVariable Long id,
+                                                  @RequestBody Post incoming) {
 
         return postService.getById(id)
                 .map(existing -> {
                     existing.setTitle(incoming.getTitle());
                     existing.setBody(incoming.getBody());
                     Post saved = postService.save(existing);
-                    return ResponseEntity.ok(saved);
+                    return ResponseEntity.ok(toPostSummary(saved));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -111,12 +131,11 @@ public class PostController {
 
 
     @PostMapping("/{id}/replies")
-//    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Object> addReply(@PathVariable Long id,
-                                           @RequestBody CreateFollowupRequest req,
-                                           Principal principal) {
+    public ResponseEntity<ReplySummary> addReply(@PathVariable Long id,
+                                                 @RequestBody CreateFollowupRequest req,
+                                                 Principal principal) {
         Post post = postService.getById(id)
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
         Replies reply = new Replies();
         reply.setBody(req.getBody());
@@ -127,10 +146,8 @@ public class PostController {
             Account account = accountService.findByEmail(email)
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
             reply.setAuthor(account);
-            // Check if the author has ROLE_ADMIN (instructor)
             reply.setFromInstructor(account.hasRole("ROLE_ADMIN"));
         } else {
-            // Fallback for anonymous posts
             Account account = accountService.findByEmail("user.user@domain.com")
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
             reply.setAuthor(account);
@@ -141,37 +158,34 @@ public class PostController {
         reply.setParentReplyId(req.getParentReplyId());
 
         Replies saved = repliesRepository.save(reply);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toReplySummary(saved));
     }
 
+
     @PostMapping("/{id}/LLMReply")
-//    @PreAuthorize("isAuthenticated()")
-    public ResponseEntity<Object> addLLMReply(@PathVariable Long id,
-                                           Principal principal) {
+    public ResponseEntity<ReplySummary> addLLMReply(@PathVariable Long id,
+                                                    Principal principal) {
         Post post = postService.getById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-
 
         Replies reply = new Replies();
         reply.setBody(geminiService.generateReply(post));
         reply.setPost(post);
-
-        // Set author to null or a system account for AI replies
         reply.setAuthor(null);
         reply.setFromInstructor(false);
         reply.setLlmGenerated(true);
         reply.setParentReplyId(null);
-        
+
         Replies saved = repliesRepository.save(reply);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toReplySummary(saved));
     }
 
+
     @PutMapping("/{postId}/replies/{replyId}/endorse")
-//    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Replies> endorseReply(@PathVariable Long postId,
-                                                  @PathVariable Long replyId,
-                                                  Principal principal) {
-        // Verify the reply exists and belongs to this post
+    public ResponseEntity<ReplySummary> endorseReply(@PathVariable Long postId,
+                                                     @PathVariable Long replyId,
+                                                     Principal principal) {
+
         Optional<Replies> replyOpt = repliesRepository.findById(replyId);
         if (replyOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -182,11 +196,10 @@ public class PostController {
             return ResponseEntity.badRequest().build();
         }
 
-        // Toggle endorsed status
         reply.setEndorsed(!reply.isEndorsed());
         Replies saved = repliesRepository.save(reply);
-        
-        return ResponseEntity.ok(saved);
+
+        return ResponseEntity.ok(toReplySummary(saved));
     }
 
     @GetMapping("/statistics")
@@ -238,9 +251,9 @@ public class PostController {
     }
 
     @PutMapping("/{postId}/replies/{replyId}/flag")
-    public ResponseEntity<Replies> flagReply(@PathVariable Long postId,
-                                             @PathVariable Long replyId,
-                                             Principal principal) {
+    public ResponseEntity<ReplySummary> flagReply(@PathVariable Long postId,
+                                                  @PathVariable Long replyId,
+                                                  Principal principal) {
 
         Optional<Replies> replyOpt = repliesRepository.findById(replyId);
         if (replyOpt.isEmpty()) {
@@ -256,11 +269,42 @@ public class PostController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
-
         reply.setFlagged(!reply.isFlagged());
-
         Replies saved = repliesRepository.save(reply);
-        return ResponseEntity.ok(saved);
+        return ResponseEntity.ok(toReplySummary(saved));
+    }
+
+    @PostMapping("/classes/{courseId}")
+    public ResponseEntity<PostSummary> createPostForCourse(@PathVariable Long courseId,
+                                                           @RequestBody CreatePostRequest req,
+                                                           Principal principal) {
+        Account me;
+        if (principal != null) {
+            String email = principal.getName();
+            me = accountService.findByEmail(email)
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        } else {
+            me = accountService.findByEmail("user.user@domain.com")
+                    .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+        }
+
+        if (!enrollmentService.isEnrolled(me.getId(), courseId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        var course = courseService.getById(courseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        Post post = new Post();
+        post.setTitle(req.getTitle());
+        post.setBody(req.getBody());
+        post.setAccount(me);
+        post.setCourse(course);
+
+        Post saved = postService.save(post);
+
+
+        return ResponseEntity.ok(toPostSummary(saved));
     }
 
 
@@ -288,6 +332,12 @@ public class PostController {
         public boolean endorsed;
         public boolean flagged;
         public String replyBody;
+    }
+
+    @Data
+    public static class CreatePostRequest {
+        private String title;
+        private String body;
     }
 
 }

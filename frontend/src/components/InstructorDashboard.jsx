@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './StudentDashboard.css'; // Use the same CSS as StudentDashboard
+import './StudentDashboard.css';
 import InstructorPostView from './InstructorPostView';
 import NewPostView from './NewPostView';
 import ResourcesPage from './ResourcesPage';
@@ -10,64 +10,83 @@ import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
 
 const InstructorDashboard = ({ onLogout, userName }) => {
+const normalizePosts = (apiPosts) =>
+  apiPosts.map((p) => {
+    const author = p.account
+      ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
+      : 'Unknown';
 
-  const normalizePosts = (apiPosts) =>
-    apiPosts.map((p) => {
-      const author = p.account
-        ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
-        : 'Unknown';
+    const isInstructorPost = p.account && p.account.authorities
+      ? p.account.authorities.some((auth) => auth.name === 'ROLE_ADMIN')
+      : false;
 
-      const isInstructorPost = p.account && p.account.authorities
-        ? p.account.authorities.some(auth => auth.name === 'ROLE_ADMIN')
-        : false;
+    const created = p.createdAt ? new Date(p.createdAt) : null;
 
-      const created = p.createdAt ? new Date(p.createdAt) : null;
+    const followups = (p.replies || []).map((r) => {
+      const isLLMReply = Boolean(r.llmGenerated);
 
-      const replies = (p.replies || []).map((r) => ({
-        id: r.id,
-        author: r.author
-          ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-          : 'Unknown',
-        time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
-        content: r.body,
-        fromInstructor: r.fromInstructor || false,
-        LLMGenerated: r.LLMGenerated || false,
-        endorsed: r.endorsed || false,
-      }));
-
-      // Separate replies into categories
-      const studentReplies = replies.filter(r => !r.fromInstructor && !r.LLMGenerated);
-      const instructorReplies = replies.filter(r => r.fromInstructor && !r.LLMGenerated);
-      const aiReplies = replies.filter(r => r.LLMGenerated);
-      const followups = replies; // For compatibility with PostView
+      const authorName = isLLMReply
+        ? 'AI Tutor'
+        : (r.author
+            ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
+            : 'Unknown');
 
       return {
-        id: p.id,
-        number: p.id,
-        type: 'question',
-        title: p.title,
-        preview: p.body ? p.body.slice(0, 120) : '',
-        content: p.body,
-        time: created
-          ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '',
-        updatedAt: p.modifiedAt || '',
-        author,
-        isInstructorPost,
-        tag: p.tag || 'general',
-        tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
-        isPinned: p.pinned || p.isPinned || false,
-        isUnread: false,
-        upvotes: p.upVotes ?? 0,
-        views: 0,
-        replies: replies,
-        studentReplies: studentReplies,
-        instructorReplies: instructorReplies,
-        aiReplies: aiReplies,
-        followupDiscussions: [],
-        followups: followups,
+        id: r.id,
+        author: authorName,
+        parentReplyId: r.parentReplyId ?? null,
+        isLLMReply,
+        llmGenerated: isLLMReply,
+        fromInstructor: r.fromInstructor || false,
+        endorsed: r.endorsed || false,
+        time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
+        content: r.body,
       };
     });
+
+    const studentReplies = followups.filter(
+      (r) => !r.fromInstructor && !r.isLLMReply
+    );
+    const instructorReplies = followups.filter(
+      (r) => r.fromInstructor && !r.isLLMReply
+    );
+    const aiReplies = followups.filter((r) => r.isLLMReply);
+
+    return {
+      id: p.id,
+      number: p.id,
+      type: 'question',
+      title: p.title,
+      preview: p.body ? p.body.slice(0, 120) : '',
+      content: p.body,
+      time: created
+        ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '',
+      updatedAt: p.modifiedAt || '',
+      author,
+      isInstructorPost,
+      tag: p.tag || 'general',
+      tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
+      isPinned: p.pinned || p.isPinned || false,
+      isUnread: false,
+      upvotes: p.upVotes ?? 0,
+      views: 0,
+
+  
+      studentReplies,
+      instructorReplies,
+      aiReplies,
+      followupDiscussions: [],  // unused for now
+
+      followups,
+    };
+  });
+
+
+
+  const [courses, setCourses] = useState([]);          // [{id, code, name, term}]
+  const [activeCourse, setActiveCourse] = useState(null);
+  const [coursesLoading, setCoursesLoading] = useState(true);
 
   const [selectedTab, setSelectedTab] = useState('qa');
   const [searchQuery, setSearchQuery] = useState('');
@@ -80,58 +99,82 @@ const InstructorDashboard = ({ onLogout, userName }) => {
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
 
-  // Sample courses data
-  const courses = [
-    {
-      id: 1,
-      code: 'CS 484',
-      name: 'Secure Web Application Development',
-      term: 'Fall 2025',
-      isActive: true
-    },
-    {
-      id: 2,
-      code: 'CS 421',
-      name: 'Natural Language Processing',
-      term: 'Fall 2025',
-      isActive: false
-    }
-  ];
+  const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
+  const [newCourse, setNewCourse] = useState({ code: '', name: '', term: '' });
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [courseCreatedInfo, setCourseCreatedInfo] = useState(null);
+  const [showCourseCreatedModal, setShowCourseCreatedModal] = useState(false);
+  const [courseCreateError, setCourseCreateError] = useState(null);
+
+
   useEffect(() => {
+    const fetchCourses = async () => {
+      try {
+        const res = await axios.get('http://localhost:8080/api/classes/mine', {
+          withCredentials: true,
+        });
+        const list = res.data || [];
+        setCourses(list);
+        if (list.length > 0) {
+          setActiveCourse(list[0]); // pick first as active
+        }
+      } catch (err) {
+        console.error(err);
+        setError('Error fetching courses');
+      } finally {
+        setCoursesLoading(false);
+      }
+    };
+    fetchCourses();
+  }, []);
+
+
+  useEffect(() => {
+    if (!activeCourse) {
+      setPosts([]);
+      return;
+    }
+
     const fetchPosts = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/posts', {
-          withCredentials: true
-        });
+        const response = await axios.get(
+          `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+          { withCredentials: true }
+        );
+        console.log('Instructor raw posts:', response.data); 
         const normalizedPosts = normalizePosts(response.data);
+        console.log('Instructor normalized posts:', normalizedPosts); 
         setPosts(normalizedPosts);
       } catch (err) {
+        console.error(err);
         setError('Error fetching posts');
       } finally {
         setLoading(false);
       }
     };
+
     fetchPosts();
-  }, []);
+  }, [activeCourse]);
 
   const handleLLMReply = async (postId) => {
     try {
-      await axios.post(`http://localhost:8080/api/posts/${postId}/LLMReply`, {}, {
-        withCredentials: true
-      });
+      await axios.post(
+        `http://localhost:8080/api/posts/${postId}/LLMReply`,
+        {},
+        { withCredentials: true }
+      );
 
       const res = await axios.get('http://localhost:8080/api/posts', {
-        withCredentials: true
+        withCredentials: true,
       });
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
-      const updatedPost = normalized.find(p => p.id === postId);
+      const updatedPost = normalized.find((p) => p.id === postId);
       if (updatedPost) {
         setSelectedPost(updatedPost);
       }
@@ -141,19 +184,27 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     }
   };
 
-  const handleInstructorReply = async (postId, text) => {
-    try {
-      await axios.post(`http://localhost:8080/api/posts/${postId}/replies`, { body: text }, {
-        withCredentials: true
-      });
+  const handleInstructorReply = async (postId, text, parentReplyId = null) => {
+    if (!text.trim()) return;
 
-      const res = await axios.get('http://localhost:8080/api/posts', {
-        withCredentials: true
-      });
+    try {
+      await axios.post(
+        `http://localhost:8080/api/posts/${postId}/replies`,
+        {
+          body: text,
+          parentReplyId,
+        },
+        { withCredentials: true }
+      );
+
+      const res = await axios.get(
+        `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+        { withCredentials: true }
+      );
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
-      const updatedPost = normalized.find(p => p.id === postId);
+      const updatedPost = normalized.find((p) => p.id === postId);
       if (updatedPost) {
         setSelectedPost(updatedPost);
       }
@@ -162,6 +213,8 @@ const InstructorDashboard = ({ onLogout, userName }) => {
       setError('Error saving reply');
     }
   };
+
+
 
   const handleEndorseReply = async (postId, replyId) => {
     try {
@@ -172,12 +225,12 @@ const InstructorDashboard = ({ onLogout, userName }) => {
       );
 
       const res = await axios.get('http://localhost:8080/api/posts', {
-        withCredentials: true
+        withCredentials: true,
       });
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
-      const updatedPost = normalized.find(p => p.id === postId);
+      const updatedPost = normalized.find((p) => p.id === postId);
       if (updatedPost) {
         setSelectedPost(updatedPost);
       }
@@ -187,14 +240,17 @@ const InstructorDashboard = ({ onLogout, userName }) => {
   };
 
   const handleNewPostSubmit = async (title, body) => {
+    if (!activeCourse) return; 
+
     try {
-      const response = await axios.post(`http://localhost:8080/api/posts`, { title, body }, {
-        withCredentials: true
-      });
+      const response = await axios.post(
+        `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+        { title, body },
+        { withCredentials: true }
+      );
 
       const newPost = normalizePosts([response.data])[0];
-      setPosts(prevPosts => [newPost, ...prevPosts]);
-
+      setPosts(prev => [newPost, ...prev]);
       setSelectedPost(newPost);
       setCreatedPost(false);
     } catch (err) {
@@ -203,7 +259,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     }
   };
 
-  // Sample statistics
+  // Sample statistics (still fake)
   const stats = {
     allCaughtUp: true,
     unreadPosts: 0,
@@ -215,7 +271,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     instructorEngagement: 51,
     instructorResponses: 51,
     studentParticipation: 8,
-    studentResponses: 8
+    studentResponses: 8,
   };
 
   const handleNewPost = () => {
@@ -224,7 +280,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
   };
 
   const handlePostClick = (postId) => {
-    const post = posts.find(p => p.id === postId);
+    const post = posts.find((p) => p.id === postId);
     setSelectedPost(post);
     setShowStatistics(false);
   };
@@ -238,8 +294,9 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     setShowStatistics(false);
   };
 
-  const handleCourseSelect = (courseId) => {
-    console.log('Selected course:', courseId);
+
+  const handleCourseSelect = (course) => {
+    setActiveCourse(course);
     setShowCourseDropdown(false);
   };
 
@@ -260,7 +317,6 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     if (onLogout) {
       onLogout();
     } else {
-      console.log('Logging out');
       window.location.reload();
     }
   };
@@ -271,35 +327,84 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     setCreatedPost(false);
   };
 
-  // Filter posts based on selected filter
-  const filteredPosts = selectedFilter === 'all'
-    ? posts
-    : posts.filter(post => post.tags && post.tags.includes(selectedFilter));
 
-  // Get pinned posts from main posts array
-  const pinnedPosts = posts.filter(post => post.isPinned);
+const handleAddCourse = () => {
+  setNewCourse({ code: '', name: '', term: '' });
+  setCourseCreatedInfo(null);
+  setCourseCreateError(null);
+  setShowCreateCourseModal(true);
+};
 
-  // Get non-pinned posts for the Today section
-  const regularPosts = filteredPosts.filter(post => !post.isPinned);
+const handleCreateCourseSubmit = async (e) => {
+  e.preventDefault();
+  const { code, name, term } = newCourse;
+  if (!code || !name || !term) return;
 
-  return (
+  try {
+    const res = await axios.post(
+      'http://localhost:8080/api/classes/instructor-create',
+      { code, name, term },
+      { withCredentials: true }
+    );
+
+    const created = res.data;
+    setCourses(prev => [...prev, created]);
+    setActiveCourse(created);
+
+    setShowCreateCourseModal(false);
+
+    setCourseCreateError(null);
+
+    setCourseCreatedInfo(created);
+    setShowCourseCreatedModal(true);
+  } catch (err) {
+    console.error(err);
+    setError('Error creating course');
+
+    setCourseCreatedInfo(null);
+    setCourseCreateError('Error creating course – check backend logs.');
+    setShowCourseCreatedModal(true);
+  }
+};
+
+
+  const filteredPosts =
+    selectedFilter === 'all'
+      ? posts
+      : posts.filter((post) => post.tags && post.tags.includes(selectedFilter));
+
+  const pinnedPosts = posts.filter((post) => post.isPinned);
+  const regularPosts = filteredPosts.filter((post) => !post.isPinned);
+
+  const effectiveSelectedPost =
+  selectedPost ||
+  regularPosts[0] ||
+  pinnedPosts[0] ||
+  null;
+
+   return (
     <div className="student-dashboard">
       {showAccountSettings ? (
         <AccountSettings onBack={() => setShowAccountSettings(false)} />
       ) : showStatistics ? (
-        <StatisticsPage
-          posts={posts}
-          onBack={() => setShowStatistics(false)}
-        />
+        <StatisticsPage posts={posts} onBack={() => setShowStatistics(false)} />
       ) : (
         <>
           {/* Header */}
           <header className="dashboard-header">
             <div className="header-left">
-              <div className="logo" onClick={handleLogoClick}>piazza</div>
+              <div className="logo" onClick={handleLogoClick}>
+                piazza
+              </div>
               <div className="course-dropdown-container">
                 <div className="course-dropdown" onClick={toggleCourseDropdown}>
-                  <span>CS 484</span>
+                  <span>
+                    {coursesLoading
+                      ? 'Loading...'
+                      : activeCourse
+                      ? activeCourse.code
+                      : 'No classes yet'}
+                  </span>
                   <span className="dropdown-icon">▼</span>
                 </div>
 
@@ -307,15 +412,30 @@ const InstructorDashboard = ({ onLogout, userName }) => {
                   <div className="course-dropdown-menu">
                     <div className="dropdown-header">
                       <h3>MY CLASSES</h3>
-                      <span className="course-term">Fall 2025</span>
+                      <span className="course-term">
+                        {activeCourse ? activeCourse.term : ''}
+                      </span>
                     </div>
                     <div className="dropdown-divider"></div>
+
                     <div className="course-list">
-                      {courses.map(course => (
+                      {courses.length === 0 && !coursesLoading && (
+                        <div className="course-item disabled">
+                          <div className="course-info">
+                            <div className="course-name">No classes yet</div>
+                          </div>
+                        </div>
+                      )}
+
+                      {courses.map((course) => (
                         <div
                           key={course.id}
-                          className={`course-item ${course.isActive ? 'active' : ''}`}
-                          onClick={() => handleCourseSelect(course.id)}
+                          className={`course-item ${
+                            activeCourse && activeCourse.id === course.id
+                              ? 'active'
+                              : ''
+                          }`}
+                          onClick={() => handleCourseSelect(course)}
                         >
                           <div className="course-info">
                             <div className="course-code">{course.code}</div>
@@ -325,14 +445,17 @@ const InstructorDashboard = ({ onLogout, userName }) => {
                         </div>
                       ))}
                     </div>
+
                     <div className="dropdown-divider"></div>
                     <div className="dropdown-footer">
                       <button className="dropdown-link">View All Classes</button>
                       <button className="dropdown-link">Class Settings</button>
                     </div>
                     <div className="dropdown-divider"></div>
-                    <button className="join-class-btn" onClick={handleJoinAnotherClass}>
-                      Join Another Class
+
+                    {/* For instructors: Add Course button */}
+                    <button className="join-class-btn" onClick={handleAddCourse}>
+                      Add Course
                     </button>
                   </div>
                 )}
@@ -353,10 +476,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
                 >
                   Resources
                 </button>
-                <button
-                  className="statistics-tab"
-                  onClick={handleStatisticsClick}
-                >
+                <button className="statistics-tab" onClick={handleStatisticsClick}>
                   Statistics
                 </button>
               </nav>
@@ -382,51 +502,10 @@ const InstructorDashboard = ({ onLogout, userName }) => {
             </div>
           </header>
 
-          {/* Sub-navigation */}
-          <nav className="sub-nav">
-            <button
-              className={`nav-item ${selectedFilter === 'all' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('all')}
-            >
-              all
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'hw4' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('hw4')}
-            >
-              hw4
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'project' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('project')}
-            >
-              project
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'exam' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('exam')}
-            >
-              exam
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'logistics' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('logistics')}
-            >
-              logistics
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'topics' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('topics')}
-            >
-              topics
-            </button>
-            <button
-              className={`nav-item ${selectedFilter === 'hw5' ? 'active' : ''}`}
-              onClick={() => handleFilterClick('hw5')}
-            >
-              hw5
-            </button>
-          </nav>
+          <JoinClassModel
+            isOpen={showJoinClassModel}
+            onClose={() => setShowJoinClassModel(false)}
+          />
 
           <div className="dashboard-content">
             {/* Sidebar */}
@@ -457,7 +536,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
                     <span className="dropdown-icon">▼</span>
                     <span>Pinned</span>
                   </div>
-                  {pinnedPosts.map(post => (
+                  {pinnedPosts.map((post) => (
                     <div
                       key={post.id}
                       className="pinned-post"
@@ -480,21 +559,14 @@ const InstructorDashboard = ({ onLogout, userName }) => {
                     <span className="dropdown-icon">▼</span>
                     <span>Today</span>
                   </div>
-                  {regularPosts.map(post => (
+                  {regularPosts.map((post) => (
                     <div
                       key={post.id}
                       className={`post-item ${post.isUnread ? 'unread' : ''}`}
                       onClick={() => handlePostClick(post.id)}
                     >
                       <div className="post-content">
-                        <div className="post-title">
-                          {post.title}
-                          {post.isInstructorPost && (
-                            <span style={{ marginLeft: '8px', color: '#ff9800', fontSize: '10px' }}>
-                              👨‍🏫
-                            </span>
-                          )}
-                        </div>
+                        <div className="post-title">{post.title}</div>
                         <div className="post-preview">{post.preview}</div>
                       </div>
                       <div className="post-meta">
@@ -510,126 +582,170 @@ const InstructorDashboard = ({ onLogout, userName }) => {
             {/* Main Content */}
             <main className="main-content">
               {selectedTab === 'resources' ? (
-                <ResourcesPage isInstructor={true} />
+                <ResourcesPage activeCourse={activeCourse} />
+              ) : selectedTab === 'statistics' ? (
+                <StatisticsPage posts={posts} onBack={() => setShowStatistics(false)} />
               ) : createdPost ? (
                 <NewPostView
-                  onCancel={() => setCreatedPost(false)}
-                  onPostCreated={async (post) => {
-                    setCreatedPost(false);
-                    setSelectedPost(post);
-                  }}
                   onSubmit={handleNewPostSubmit}
+                  onCancel={() => setCreatedPost(false)}
                 />
-              ) : selectedPost ? (
+              ) : posts.length > 0 ? (
                 <InstructorPostView
-                  post={selectedPost}
-                  currentUser={userName || 'Instructor'}
-                  onBack={() => setSelectedPost(null)}
+                  posts={regularPosts}
+                  pinnedPosts={pinnedPosts}
+                  loading={loading}
+                  error={error}
+                  selectedPost={selectedPost || regularPosts[0]}
+                  onPostClick={handlePostClick}
+                  onFilterClick={handleFilterClick}
+                  selectedFilter={selectedFilter}
                   onLLMReply={handleLLMReply}
                   onInstructorReply={handleInstructorReply}
-                  onEndorse={handleEndorseReply}
+                  onEndorseReply={handleEndorseReply}
                 />
               ) : (
                 <>
+                  {/* same “Class at a Glance” placeholder as student, if you want */}
                   <div className="terms-notice">
-                    <a href="#">Terms of Service</a>: In the event of a conflict between these Payment Terms and the Terms of Service, these Payment Terms shall govern.
+                    <a href="#">Terms of Service</a>: In the event of a conflict between
+                    these Payment Terms and the Terms of Service, these Payment Terms
+                    shall govern.
                   </div>
 
                   <h2 className="section-title">Class at a Glance</h2>
-
-                  <div className="glance-cards">
-                    <div className="status-row">
-                      <div className={`status-card ${stats.allCaughtUp ? 'success' : 'warning'}`}>
-                        <div className="status-icon">
-                          {stats.allCaughtUp ? '✓' : '!'}
-                        </div>
-                        <div className="status-content">
-                          <div className="status-title">
-                            {stats.allCaughtUp ? 'All caught up' : 'Unread Posts'}
-                          </div>
-                          <div className="status-subtitle">
-                            {stats.allCaughtUp ? 'No unread posts' : `${stats.unreadPosts} unread posts`}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="status-card warning">
-                        <div className="status-icon">!</div>
-                        <div className="status-content">
-                          <div className="status-title">Needs Attention</div>
-                          <div className="status-subtitle">{stats.unansweredQuestions} unanswered questions</div>
-                        </div>
-                      </div>
-
-                      <div className="status-card warning">
-                        <div className="status-icon">!</div>
-                        <div className="status-content">
-                          <div className="status-title">Needs Attention</div>
-                          <div className="status-subtitle">{stats.unansweredFollowups} unanswered followups</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="stats-row">
-                      <div className="stat-card">
-                        <div className="stat-icon">👥</div>
-                        <div className="stat-value">{stats.totalPosts}</div>
-                        <div className="stat-label">Total Posts</div>
-                      </div>
-
-                      <div className="stat-card">
-                        <div className="stat-icon">📊</div>
-                        <div className="stat-value">{stats.totalContributions}</div>
-                        <div className="stat-label">Total Contributions</div>
-                      </div>
-
-                      <div className="stat-card">
-                        <div className="stat-icon">🎓</div>
-                        <div className="stat-value">{stats.studentsEnrolled}</div>
-                        <div className="stat-label">Students Enrolled</div>
-                      </div>
-
-                      <div className="stat-card license">
-                        <div className="stat-label">License Status</div>
-                        <div className="license-value">contribution-supported</div>
-                        <div className="license-icon">🏫</div>
-                      </div>
-                    </div>
-
-                    <div className="engagement-row">
-                      <div className="engagement-card">
-                        <div className="engagement-header">
-                          <div>
-                            <div className="engagement-title">Instructor Engagement</div>
-                            <div className="engagement-value">{stats.instructorEngagement}</div>
-                            <div className="engagement-subtitle">instructor responses</div>
-                          </div>
-                          <div className="engagement-icon">🍎</div>
-                        </div>
-                      </div>
-
-                      <div className="engagement-card">
-                        <div className="engagement-header">
-                          <div>
-                            <div className="engagement-title">Student Participation</div>
-                            <div className="engagement-value">{stats.studentParticipation}</div>
-                            <div className="engagement-subtitle">student responses</div>
-                          </div>
-                          <div className="engagement-icon">👥</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  {/* cards using your stats object, like the student version */}
                 </>
               )}
             </main>
           </div>
 
-          {/* Join Class Model */}
-          <JoinClassModel
-            isOpen={showJoinClassModel}
-            onClose={() => setShowJoinClassModel(false)}
-          />
+
+          {/* CREATE COURSE FORM MODAL */}
+          {showCreateCourseModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                <h2>Create New Course</h2>
+                <form onSubmit={handleCreateCourseSubmit}>
+                  <div className="form-group">
+                    <label>Course code (e.g. CS 484)</label>
+                    <input
+                      type="text"
+                      value={newCourse.code}
+                      onChange={(e) =>
+                        setNewCourse((prev) => ({ ...prev, code: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Course title</label>
+                    <input
+                      type="text"
+                      value={newCourse.name}
+                      onChange={(e) =>
+                        setNewCourse((prev) => ({ ...prev, name: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label>Term (e.g. Fall 2025)</label>
+                    <input
+                      type="text"
+                      value={newCourse.term}
+                      onChange={(e) =>
+                        setNewCourse((prev) => ({ ...prev, term: e.target.value }))
+                      }
+                      required
+                    />
+                  </div>
+
+                  <div className="modal-actions">
+                    <button
+                      type="button"
+                      onClick={() => setShowCreateCourseModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit">Create Course</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* COURSE CREATED / ERROR MODAL */}
+          {showCourseCreatedModal && (
+            <div className="modal-overlay">
+              <div className="modal">
+                {courseCreateError ? (
+                  <>
+                    <h2>Couldn’t Create Course</h2>
+                    <p>{courseCreateError}</p>
+                    <div className="modal-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCourseCreatedModal(false);
+                          setCourseCreateError(null);
+                        }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2>Course Created 🎉</h2>
+                    {courseCreatedInfo && (
+                      <>
+                        <p>
+                          <strong>{courseCreatedInfo.code}</strong> –{' '}
+                          {courseCreatedInfo.name}
+                          <br />
+                          <span style={{ fontSize: '0.9rem', color: '#666' }}>
+                            {courseCreatedInfo.term}
+                          </span>
+                        </p>
+
+                        {courseCreatedInfo.joinCode && (
+                          <div className="form-group">
+                            <label>Student join code</label>
+                            <div
+                              style={{
+                                padding: '8px 12px',
+                                borderRadius: '4px',
+                                border: '1px solid #ccc',
+                                fontFamily: 'monospace',
+                                display: 'inline-block',
+                              }}
+                            >
+                              {courseCreatedInfo.joinCode}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="modal-actions">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCourseCreatedModal(false);
+                          setCourseCreatedInfo(null);
+                        }}
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
@@ -637,3 +753,4 @@ const InstructorDashboard = ({ onLogout, userName }) => {
 };
 
 export default InstructorDashboard;
+

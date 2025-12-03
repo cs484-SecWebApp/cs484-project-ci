@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import './PostView.css';
 import ChatWidget from './ChatWidget';
 
+const API_BASE = 'http://localhost:8080';
+
 const PostView = ({
   post,
   currentUser,
@@ -29,7 +31,7 @@ const PostView = ({
 
   const handleFlagReply = async (replyId) => {
     try {
-      await fetch(`/api/posts/${post.id}/replies/${replyId}/flag`, {
+      await fetch(`${API_BASE}/api/posts/${post.id}/replies/${replyId}/flag`, {
         method: 'PUT',
         credentials: 'include',
       });
