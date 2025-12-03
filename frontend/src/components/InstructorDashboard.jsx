@@ -9,6 +9,8 @@ import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
 
+const API_BASE = 'http://localhost:8080';
+
 const InstructorDashboard = ({ onLogout, userName }) => {
 const normalizePosts = (apiPosts) =>
   apiPosts.map((p) => {
@@ -109,6 +111,30 @@ const normalizePosts = (apiPosts) =>
   const [courseCreatedInfo, setCourseCreatedInfo] = useState(null);
   const [showCourseCreatedModal, setShowCourseCreatedModal] = useState(false);
   const [courseCreateError, setCourseCreateError] = useState(null);
+
+  const [isInstructor, setIsInstructor] = useState(false);
+    useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await axios.get(`${API_BASE}/api/accounts/me`, {
+          withCredentials: true,
+        });
+
+        const me = res.data;
+        const roles = me.roles || [];
+
+        const instructorLike =
+          roles.includes('ROLE_ADMIN') || roles.includes('ROLE_INSTRUCTOR');
+
+        setIsInstructor(instructorLike);
+      } catch (err) {
+        console.error('Failed to fetch current account', err);
+        setIsInstructor(false);
+      }
+    };
+
+    fetchMe();
+  }, []);
 
 
   useEffect(() => {
@@ -582,7 +608,7 @@ const handleCreateCourseSubmit = async (e) => {
             {/* Main Content */}
             <main className="main-content">
               {selectedTab === 'resources' ? (
-                <ResourcesPage activeCourse={activeCourse} />
+                <ResourcesPage activeCourse={activeCourse} isInstructor={isInstructor}/>
               ) : selectedTab === 'statistics' ? (
                 <StatisticsPage posts={posts} onBack={() => setShowStatistics(false)} />
               ) : createdPost ? (
