@@ -118,7 +118,9 @@ const StudentDashboard = ({ onLogout, userName }) => {
       const me = res.data;
       const roles = me.roles || [];
 
-      const instructorLike = roles.includes('ROLE_ADMIN');
+      const instructorLike =
+        roles.includes('ROLE_ADMIN') || roles.includes('ROLE_INSTRUCTOR');
+
       setIsInstructor(instructorLike);
     } catch (err) {
       console.error('Failed to fetch current account', err);
@@ -537,7 +539,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
             {/* Main Content */}
             <main className="main-content">
               {selectedTab === 'resources' ? (
-                <ResourcesPage activeCourse={activeCourse} isInstructor={true} />
+                <ResourcesPage activeCourse={activeCourse} isInstructor={isInstructor}/>
               ) : createdPost ? (
                 <NewPostView
                   onCancel={() => setCreatedPost(false)}
