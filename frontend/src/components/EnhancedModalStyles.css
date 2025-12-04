@@ -1,0 +1,347 @@
+/* Modal Overlay - Enhanced */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: modalFadeIn 0.2s ease-out;
+  backdrop-filter: blur(4px);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Modal Container - Enhanced */
+.modal {
+  background-color: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  animation: modalSlideUp 0.3s ease-out;
+}
+
+@keyframes modalSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal Header (h2) */
+.modal h2 {
+  background: linear-gradient(135deg, #1c5a99 0%, #2980b9 100%);
+  color: white;
+  font-size: 22px;
+  font-weight: 600;
+  margin: 0;
+  padding: 24px 28px;
+  text-align: center;
+}
+
+/* Success variant for "Course Created" */
+.modal h2:has(+ p):first-child,
+.modal h2:contains("Created") {
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+}
+
+/* Modal Form */
+.modal form {
+  padding: 28px;
+}
+
+/* Form Groups */
+.modal .form-group {
+  margin-bottom: 20px;
+}
+
+.modal .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.modal .form-group input {
+  width: 100%;
+  padding: 12px 14px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  transition: all 0.2s;
+  background-color: #fafafa;
+  box-sizing: border-box;
+}
+
+.modal .form-group input:focus {
+  outline: none;
+  border-color: #1c5a99;
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(28, 90, 153, 0.1);
+}
+
+.modal .form-group input::placeholder {
+  color: #999;
+}
+
+/* Modal Actions */
+.modal .modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.modal .modal-actions button {
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Cancel Button */
+.modal .modal-actions button[type="button"] {
+  background: white;
+  border: 2px solid #e0e0e0;
+  color: #666;
+}
+
+.modal .modal-actions button[type="button"]:hover {
+  background-color: #f5f5f5;
+  border-color: #ccc;
+}
+
+/* Submit/Primary Button */
+.modal .modal-actions button[type="submit"],
+.modal .modal-actions button:last-child:not([type="button"]) {
+  background: linear-gradient(135deg, #1c5a99 0%, #2980b9 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.modal .modal-actions button[type="submit"]:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 90, 153, 0.3);
+}
+
+/* ============================================
+   COURSE CREATED SUCCESS MODAL STYLES
+   ============================================ */
+
+/* Success Header Styling */
+.modal h2:first-child {
+  position: relative;
+}
+
+/* Course info paragraph styling */
+.modal p {
+  padding: 20px 28px;
+  margin: 0;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.modal p strong {
+  color: #1c5a99;
+  font-size: 18px;
+}
+
+.modal p span {
+  display: block;
+  margin-top: 4px;
+}
+
+/* Join Code Display Box */
+.modal .form-group {
+  text-align: center;
+  padding: 0 28px;
+}
+
+.modal .form-group label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.modal .form-group div[style*="monospace"] {
+  font-family: 'SF Mono', 'Monaco', 'Consolas', 'Liberation Mono', monospace !important;
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  letter-spacing: 3px !important;
+  color: #1565c0 !important;
+  background-color: #e3f2fd !important;
+  border: 2px dashed #90caf9 !important;
+  border-radius: 10px !important;
+  padding: 16px 24px !important;
+  text-align: center;
+  display: inline-block !important;
+  margin: 0 auto;
+}
+
+/* Single button (Done) styling for success modal */
+.modal .modal-actions:has(button:only-child) {
+  padding: 20px 28px 28px;
+  border-top: none;
+}
+
+.modal .modal-actions:has(button:only-child) button {
+  background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+  border: none;
+  color: white;
+  font-weight: 600;
+}
+
+.modal .modal-actions:has(button:only-child) button:hover {
+  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+/* ============================================
+   JOIN CODE IN DROPDOWN (for instructors)
+   ============================================ */
+
+/* Add to your StudentDashboard.css */
+
+/* Enhanced course item layout */
+.course-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  gap: 12px;
+}
+
+.course-item:hover {
+  background-color: #f8f9fa;
+}
+
+.course-item.active {
+  background-color: #e3f2fd;
+  border-left: 3px solid #1c5a99;
+}
+
+/* Course info container */
+.course-info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Join Code Badge */
+.course-join-code {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background-color: #fff3e0;
+  border: 1px solid #ffcc80;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-family: 'SF Mono', 'Monaco', 'Consolas', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e65100;
+  letter-spacing: 0.5px;
+  margin-right: 8px;
+}
+
+.course-join-code::before {
+  content: '🔑';
+  font-size: 10px;
+}
+
+/* Add Course Button (Instructor) */
+.add-course-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 24px);
+  margin: 8px 12px 12px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #1c5a99 0%, #2980b9 100%);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.add-course-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 90, 153, 0.3);
+}
+
+/* Keep existing join-class-btn but enhance it */
+.join-class-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: #1c5a99;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  padding: 12px 20px;
+  width: 100%;
+  transition: background-color 0.2s;
+}
+
+.join-class-btn:hover {
+  background-color: #e3f2fd;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (max-width: 520px) {
+  .modal {
+    width: 95%;
+    margin: 20px;
+  }
+
+  .modal h2 {
+    padding: 20px;
+    font-size: 20px;
+  }
+
+  .modal form {
+    padding: 20px;
+  }
+
+  .modal .modal-actions {
+    flex-direction: column;
+  }
+
+  .modal .form-group div[style*="monospace"] {
+    font-size: 20px !important;
+    letter-spacing: 2px !important;
+  }
+}

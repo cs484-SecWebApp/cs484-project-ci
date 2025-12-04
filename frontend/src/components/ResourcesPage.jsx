@@ -183,8 +183,8 @@ const ResourcesPage = ({ activeCourse, isInstructor }) => {
                   <td>{r.title || r.originalFilename}</td>
                   <td>{r.originalFilename}</td>
                   <td>
-                    {r.uploadedAt
-                      ? new Date(r.uploadedAt).toLocaleString()
+                    {r.createdAt
+                      ? new Date(r.createdAt).toLocaleString()
                       : ''}
                   </td>
                   <td className="resource-actions">

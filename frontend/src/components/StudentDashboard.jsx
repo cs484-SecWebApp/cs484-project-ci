@@ -7,6 +7,7 @@ import ResourcesPage from './ResourcesPage';
 import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
+import './WelcomeSection.css';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -77,6 +78,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
   const [showJoinClassModel, setShowJoinClassModel] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);  // NEW: Track welcome page visibility
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -236,6 +238,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
       setPosts((prev) => [newPost, ...prev]);
       setSelectedPost(newPost);
       setCreatedPost(false);
+      setShowWelcome(false);  // Hide welcome after creating post
     } catch (err) {
       console.error(err);
       setError('Error posting new question');
@@ -260,15 +263,19 @@ const StudentDashboard = ({ onLogout, userName }) => {
   // ----- UI handlers -----
   const handleNewPost = () => {
     setCreatedPost(true);
+    setShowWelcome(false);  // Hide welcome when creating new post
   };
 
   const handlePostClick = (postId) => {
     const post = posts.find((p) => p.id === postId);
     setSelectedPost(post);
+    setShowWelcome(false);  // Hide welcome when clicking a post
   };
 
   const handleLogoClick = () => {
     setSelectedPost(null);
+    setCreatedPost(false);
+    setShowWelcome(true);  // Show welcome when clicking logo
   };
 
   const handleCourseSelect = (course) => {
@@ -446,98 +453,110 @@ const StudentDashboard = ({ onLogout, userName }) => {
             </div>
           </header>
 
-          <div className="dashboard-content">
-            {/* Sidebar */}
-            <aside className="sidebar">
-              <button
-                className="new-post-btn"
-                onClick={handleNewPost}
-                disabled={!activeCourse}
-              >
-                <span className="plus-icon">⊕</span> New Post
-              </button>
+          <div className={`dashboard-content ${selectedTab !== 'qa' ? 'no-sidebar' : ''}`}>
+            {/* Sidebar - Only show on Q&A tab */}
+            {selectedTab === 'qa' && (
+              <aside className="sidebar">
+                <button
+                  className="new-post-btn"
+                  onClick={handleNewPost}
+                  disabled={!activeCourse}
+                >
+                  <span className="plus-icon">⊕</span> New Post
+                </button>
 
-              <div className="search-box">
-                <input
-                  type="text"
-                  placeholder="Search posts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="posts-section">
-                <div className="posts-header">
-                  <button className="all-posts-btn">
-                    <span className="filter-icon">☰</span> All Posts
-                  </button>
-                  <button className="menu-icon">⋮</button>
+                <div className="search-box">
+                  <input
+                    type="text"
+                    placeholder="Search posts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
 
-                <div className="pinned-section">
-                  <div className="section-header">
-                    <span className="dropdown-icon">▼</span>
-                    <span>Pinned</span>
+                <div className="posts-section">
+                  <div className="posts-header">
+                    <button className="all-posts-btn">
+                      <span className="filter-icon">☰</span> All Posts
+                    </button>
+                    <button className="menu-icon">⋮</button>
                   </div>
-                  {pinnedPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="pinned-post"
-                      onClick={() => handlePostClick(post.id)}
-                    >
-                      <span className="pin-icon">📌</span>
-                      <div className="post-info">
-                        <div className="post-title">{post.title}</div>
-                        {post.preview && (
-                          <div className="post-preview">{post.preview}</div>
-                        )}
-                      </div>
-                      <div className="post-date">{post.time}</div>
-                    </div>
-                  ))}
-                </div>
 
-                <div className="posts-list">
-                  <div className="section-header">
-                    <span className="dropdown-icon">▼</span>
-                    <span>Today</span>
-                  </div>
-                  {loading ? (
-                    <div className="no-posts-placeholder">Loading posts…</div>
-                  ) : error ? (
-                    <div className="no-posts-placeholder">{error}</div>
-                  ) : regularPosts.length === 0 ? (
-                    <div className="no-posts-placeholder">
-                      No posts yet in this class.
+                  <div className="pinned-section">
+                    <div className="section-header">
+                      <span className="dropdown-icon">▼</span>
+                      <span>Pinned</span>
                     </div>
-                  ) : (
-                    regularPosts.map((post) => (
+                    {pinnedPosts.map((post) => (
                       <div
                         key={post.id}
-                        className={`post-item ${
-                          post.isUnread ? 'unread' : ''
-                        }`}
+                        className="pinned-post"
                         onClick={() => handlePostClick(post.id)}
                       >
-                        <div className="post-content">
+                        <span className="pin-icon">📌</span>
+                        <div className="post-info">
                           <div className="post-title">{post.title}</div>
-                          <div className="post-preview">{post.preview}</div>
-                        </div>
-                        <div className="post-meta">
-                          <div className="post-time">{post.time}</div>
-                          {post.isUnread && (
-                            <div className="unread-badge">📋</div>
+                          {post.preview && (
+                            <div className="post-preview">{post.preview}</div>
                           )}
                         </div>
+                        <div className="post-date">{post.time}</div>
                       </div>
-                    ))
-                  )}
+                    ))}
+                  </div>
+
+                  <div className="posts-list">
+                    <div className="section-header">
+                      <span className="dropdown-icon">▼</span>
+                      <span>Today</span>
+                    </div>
+                    {loading ? (
+                      <div className="posts-list-empty">
+                        <div className="empty-icon">⏳</div>
+                        <div>Loading posts…</div>
+                      </div>
+                    ) : error ? (
+                      <div className="posts-list-empty">
+                        <div className="empty-icon">⚠️</div>
+                        <div>{error}</div>
+                      </div>
+                    ) : regularPosts.length === 0 && pinnedPosts.length === 0 ? (
+                      <div className="posts-list-empty">
+                        <div className="empty-icon">📝</div>
+                        <div>No posts yet in this class.</div>
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                          Click "New Post" to start a discussion!
+                        </div>
+                      </div>
+                    ) : (
+                      regularPosts.map((post) => (
+                        <div
+                          key={post.id}
+                          className={`post-item ${
+                            post.isUnread ? 'unread' : ''
+                          }`}
+                          onClick={() => handlePostClick(post.id)}
+                        >
+                          <div className="post-content">
+                            <div className="post-title">{post.title}</div>
+                            <div className="post-preview">{post.preview}</div>
+                          </div>
+                          <div className="post-meta">
+                            <div className="post-time">{post.time}</div>
+                            {post.isUnread && (
+                              <div className="unread-badge">📋</div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            )}
 
             {/* Main Content */}
-            <main className="main-content">
+            <main className={`main-content ${selectedTab !== 'qa' ? 'full-width' : ''}`}>
               {selectedTab === 'resources' ? (
                 <ResourcesPage activeCourse={activeCourse} isInstructor={isInstructor}/>
               ) : createdPost ? (
@@ -546,9 +565,115 @@ const StudentDashboard = ({ onLogout, userName }) => {
                   onPostCreated={async (post) => {
                     setCreatedPost(false);
                     setSelectedPost(post);
+                    setShowWelcome(false);
                   }}
                   onSubmit={handleNewPostSubmit}
                 />
+              ) : showWelcome || (!selectedPost && posts.length === 0) ? (
+                /* Welcome / Getting Started Section for Students */
+                <div className="welcome-section">
+                  <div className="welcome-header">
+                    <h2 className="welcome-title">
+                      <span className="wave-emoji">👋</span>
+                      Welcome to Piazza!
+                    </h2>
+                    <p className="welcome-subtitle">
+                      Your collaborative Q&A platform for class discussions. Here's how to get started:
+                    </p>
+                  </div>
+
+                  <div className="instructions-grid">
+                    {/* Join a Class */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon blue">🎓</div>
+                      <h3 className="instruction-title">Join a Class</h3>
+                      <p className="instruction-description">
+                        Get your class join code from your instructor and start participating.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Click your profile icon (top right)</li>
+                        <li>Select "Join Another Class"</li>
+                        <li>Enter the 6-character join code</li>
+                        <li>You're in! Start exploring</li>
+                      </ol>
+                      <button className="instruction-action" onClick={() => setShowJoinClassModel(true)}>
+                        Join a Class <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* Ask a Question */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon green">❓</div>
+                      <h3 className="instruction-title">Ask a Question</h3>
+                      <p className="instruction-description">
+                        Post your questions and get help from classmates and instructors.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Click the blue "New Post" button</li>
+                        <li>Write a clear, descriptive title</li>
+                        <li>Add details in the body (code, context)</li>
+                        <li>Submit and wait for responses!</li>
+                      </ol>
+                      <button className="instruction-action" onClick={() => setCreatedPost(true)}>
+                        New Post <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* AI Assistant */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon purple">🤖</div>
+                      <h3 className="instruction-title">AI Assistant</h3>
+                      <p className="instruction-description">
+                        Get instant help from our AI tutor powered by Gemini.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Open any post/question</li>
+                        <li>Click the "AI" button in the actions bar</li>
+                        <li>AI generates a helpful response</li>
+                        <li>Click "Let's talk more" to chat further</li>
+                      </ol>
+                    </div>
+
+                    {/* Navigate & Engage */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon orange">💡</div>
+                      <h3 className="instruction-title">Navigate & Engage</h3>
+                      <p className="instruction-description">
+                        Find answers quickly and contribute to discussions.
+                      </p>
+                      <ul className="instruction-steps">
+                        <li>Use the search bar to find existing posts</li>
+                        <li>Check "Pinned" posts for important announcements</li>
+                        <li>Reply to help other students</li>
+                        <li>Upvote helpful answers</li>
+                        <li>Flag AI responses for instructor review</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Quick Tips */}
+                  <div className="tips-section">
+                    <h3 className="tips-title">💡 Pro Tips</h3>
+                    <ul className="tips-list">
+                      <li className="tip-item">
+                        <span className="tip-icon">🔍</span>
+                        Search before posting - your question might be answered!
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">📝</span>
+                        Include code snippets and error messages
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">⭐</span>
+                        Star posts to bookmark them for later
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">🤖</span>
+                        AI answers are instant but verify with instructors
+                      </li>
+                    </ul>
+                  </div>
+                </div>
               ) : selectedPost ? (
                 <PostView
                   post={selectedPost}
@@ -558,10 +683,18 @@ const StudentDashboard = ({ onLogout, userName }) => {
                   onFollowupSubmit={handleFollowupSubmit}
                 />
               ) : (
-                <>
-                  <h2 className="section-title">Class at a Glance</h2>
-                  {/* existing glance cards / stats here */}
-                </>
+                /* Fallback - show welcome if nothing else matches */
+                <div className="welcome-section">
+                  <div className="welcome-header">
+                    <h2 className="welcome-title">
+                      <span className="wave-emoji">👋</span>
+                      Welcome to Piazza!
+                    </h2>
+                    <p className="welcome-subtitle">
+                      Select a post from the sidebar or click "New Post" to get started.
+                    </p>
+                  </div>
+                </div>
               )}
             </main>
           </div>
