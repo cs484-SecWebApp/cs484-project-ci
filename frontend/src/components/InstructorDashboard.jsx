@@ -8,6 +8,8 @@ import StatisticsPage from './StatisticsPage';
 import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
+import './EnhancedModalStyles.css';
+import './WelcomeSection.css';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -100,6 +102,7 @@ const normalizePosts = (apiPosts) =>
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);  // NEW: Track welcome page visibility
 
   const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
   const [newCourse, setNewCourse] = useState({ code: '', name: '', term: '' });
@@ -279,6 +282,7 @@ const normalizePosts = (apiPosts) =>
       setPosts(prev => [newPost, ...prev]);
       setSelectedPost(newPost);
       setCreatedPost(false);
+      setShowWelcome(false);  // Hide welcome after creating post
     } catch (err) {
       console.error(err);
       setError('Error posting new question');
@@ -303,12 +307,14 @@ const normalizePosts = (apiPosts) =>
   const handleNewPost = () => {
     setCreatedPost(true);
     setShowStatistics(false);
+    setShowWelcome(false);  // Hide welcome when creating new post
   };
 
   const handlePostClick = (postId) => {
     const post = posts.find((p) => p.id === postId);
     setSelectedPost(post);
     setShowStatistics(false);
+    setShowWelcome(false);  // Hide welcome when clicking a post
   };
 
   const handleFilterClick = (filter) => {
@@ -318,6 +324,8 @@ const normalizePosts = (apiPosts) =>
   const handleLogoClick = () => {
     setSelectedPost(null);
     setShowStatistics(false);
+    setCreatedPost(false);
+    setShowWelcome(true);  // Show welcome when clicking logo
   };
 
 
@@ -351,6 +359,7 @@ const normalizePosts = (apiPosts) =>
     setShowStatistics(true);
     setSelectedPost(null);
     setCreatedPost(false);
+    setShowWelcome(false);  // Hide welcome when viewing statistics
   };
 
 
@@ -419,7 +428,7 @@ const handleCreateCourseSubmit = async (e) => {
           {/* Header */}
           <header className="dashboard-header">
             <div className="header-left">
-              <div className="logo" onClick={handleLogoClick}>
+              <div className="logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
                 piazza
               </div>
               <div className="course-dropdown-container">
@@ -457,9 +466,7 @@ const handleCreateCourseSubmit = async (e) => {
                         <div
                           key={course.id}
                           className={`course-item ${
-                            activeCourse && activeCourse.id === course.id
-                              ? 'active'
-                              : ''
+                            activeCourse && activeCourse.id === course.id ? 'active' : ''
                           }`}
                           onClick={() => handleCourseSelect(course)}
                         >
@@ -467,6 +474,9 @@ const handleCreateCourseSubmit = async (e) => {
                             <div className="course-code">{course.code}</div>
                             <div className="course-name">{course.name}</div>
                           </div>
+                          {course.joinCode && (
+                            <span className="course-join-code">{course.joinCode}</span>
+                          )}
                           <span className="course-term-badge">{course.term}</span>
                         </div>
                       ))}
@@ -533,80 +543,92 @@ const handleCreateCourseSubmit = async (e) => {
             onClose={() => setShowJoinClassModel(false)}
           />
 
-          <div className="dashboard-content">
-            {/* Sidebar */}
-            <aside className="sidebar">
-              <button className="new-post-btn" onClick={handleNewPost}>
-                <span className="plus-icon">⊕</span> New Post
-              </button>
+          <div className={`dashboard-content ${selectedTab !== 'qa' ? 'no-sidebar' : ''}`}>
+            {/* Sidebar - Only show on Q&A tab */}
+            {selectedTab === 'qa' && (
+              <aside className="sidebar">
+                <button className="new-post-btn" onClick={handleNewPost}>
+                  <span className="plus-icon">⊕</span> New Post
+                </button>
 
-              <div className="search-box">
-                <input
-                  type="text"
-                  placeholder="Search posts..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-
-              <div className="posts-section">
-                <div className="posts-header">
-                  <button className="all-posts-btn">
-                    <span className="filter-icon">☰</span> All Posts
-                  </button>
-                  <button className="menu-icon">⋮</button>
+                <div className="search-box">
+                  <input
+                    type="text"
+                    placeholder="Search posts..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
                 </div>
 
-                <div className="pinned-section">
-                  <div className="section-header">
-                    <span className="dropdown-icon">▼</span>
-                    <span>Pinned</span>
+                <div className="posts-section">
+                  <div className="posts-header">
+                    <button className="all-posts-btn">
+                      <span className="filter-icon">☰</span> All Posts
+                    </button>
+                    <button className="menu-icon">⋮</button>
                   </div>
-                  {pinnedPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="pinned-post"
-                      onClick={() => handlePostClick(post.id)}
-                    >
-                      <span className="pin-icon">📌</span>
-                      <div className="post-info">
-                        <div className="post-title">{post.title}</div>
-                        {post.preview && (
-                          <div className="post-preview">{post.preview}</div>
-                        )}
-                      </div>
-                      <div className="post-date">{post.time}</div>
-                    </div>
-                  ))}
-                </div>
 
-                <div className="posts-list">
-                  <div className="section-header">
-                    <span className="dropdown-icon">▼</span>
-                    <span>Today</span>
-                  </div>
-                  {regularPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className={`post-item ${post.isUnread ? 'unread' : ''}`}
-                      onClick={() => handlePostClick(post.id)}
-                    >
-                      <div className="post-content">
-                        <div className="post-title">{post.title}</div>
-                        <div className="post-preview">{post.preview}</div>
-                      </div>
-                      <div className="post-meta">
-                        <div className="post-time">{post.time}</div>
-                        {post.isUnread && <div className="unread-badge">📋</div>}
-                      </div>
+                  <div className="pinned-section">
+                    <div className="section-header">
+                      <span className="dropdown-icon">▼</span>
+                      <span>Pinned</span>
                     </div>
-                  ))}
+                    {pinnedPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="pinned-post"
+                        onClick={() => handlePostClick(post.id)}
+                      >
+                        <span className="pin-icon">📌</span>
+                        <div className="post-info">
+                          <div className="post-title">{post.title}</div>
+                          {post.preview && (
+                            <div className="post-preview">{post.preview}</div>
+                          )}
+                        </div>
+                        <div className="post-date">{post.time}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="posts-list">
+                    <div className="section-header">
+                      <span className="dropdown-icon">▼</span>
+                      <span>Today</span>
+                    </div>
+                    {regularPosts.length === 0 && pinnedPosts.length === 0 ? (
+                      <div className="posts-list-empty">
+                        <div className="empty-icon">📝</div>
+                        <div>No posts yet in this class.</div>
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                          Click "New Post" to start a discussion!
+                        </div>
+                      </div>
+                    ) : (
+                      regularPosts.map((post) => (
+                        <div
+                          key={post.id}
+                          className={`post-item ${post.isUnread ? 'unread' : ''}`}
+                          onClick={() => handlePostClick(post.id)}
+                        >
+                          <div className="post-content">
+                            <div className="post-title">{post.title}</div>
+                            <div className="post-preview">{post.preview}</div>
+                          </div>
+                          <div className="post-meta">
+                            <div className="post-time">{post.time}</div>
+                            {post.isUnread && <div className="unread-badge">📋</div>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
-              </div>
-            </aside>
+              </aside>
+            )}
 
             {/* Main Content */}
-            <main className="main-content">
+            <main className={`main-content ${selectedTab !== 'qa' ? 'full-width' : ''}`}>
               {selectedTab === 'resources' ? (
                 <ResourcesPage activeCourse={activeCourse} isInstructor={isInstructor}/>
               ) : selectedTab === 'statistics' ? (
@@ -616,7 +638,147 @@ const handleCreateCourseSubmit = async (e) => {
                   onSubmit={handleNewPostSubmit}
                   onCancel={() => setCreatedPost(false)}
                 />
-              ) : posts.length > 0 ? (
+              ) : showWelcome || posts.length === 0 ? (
+                /* Welcome / Getting Started Section */
+                <div className="welcome-section">
+                  <div className="welcome-header">
+                    <h2 className="welcome-title">
+                      <span className="wave-emoji">👋</span>
+                      Welcome, Instructor!
+                    </h2>
+                    <p className="welcome-subtitle">
+                      Manage your classes, engage with students, and leverage AI-assisted learning.
+                    </p>
+                  </div>
+
+                  <div className="instructions-grid">
+                    {/* Create a Class */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon blue">📚</div>
+                      <h3 className="instruction-title">Create a Class</h3>
+                      <p className="instruction-description">
+                        Set up a new course and invite your students with a join code.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Click the course dropdown (top left)</li>
+                        <li>Select "Add Course"</li>
+                        <li>Enter course code, title, and term</li>
+                        <li>Share the join code with students</li>
+                      </ol>
+                      <button className="instruction-action" onClick={handleAddCourse}>
+                        Create Course <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* Post Announcements */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon green">📢</div>
+                      <h3 className="instruction-title">Post & Announce</h3>
+                      <p className="instruction-description">
+                        Create posts, answer questions, and keep students informed.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Click "New Post" to create content</li>
+                        <li>Answer student questions directly</li>
+                        <li>Pin important announcements</li>
+                        <li>Use rich text formatting</li>
+                      </ol>
+                      <button className="instruction-action" onClick={handleNewPost}>
+                        New Post <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* Upload Resources */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon orange">📁</div>
+                      <h3 className="instruction-title">Upload Resources</h3>
+                      <p className="instruction-description">
+                        Share lecture slides, homework, and course materials.
+                      </p>
+                      <ol className="instruction-steps numbered">
+                        <li>Go to the "Resources" tab</li>
+                        <li>Click "Choose File" to select a document</li>
+                        <li>Add a descriptive title (optional)</li>
+                        <li>Click "Upload" - students can download!</li>
+                      </ol>
+                      <button className="instruction-action" onClick={() => setSelectedTab('resources')}>
+                        Go to Resources <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* AI Management */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon purple">🤖</div>
+                      <h3 className="instruction-title">AI Assistant Management</h3>
+                      <p className="instruction-description">
+                        Review and improve AI responses for your course.
+                      </p>
+                      <ul className="instruction-steps">
+                        <li><strong>Review:</strong> See AI-generated responses on posts</li>
+                        <li><strong>Endorse:</strong> Mark accurate AI answers with ✓</li>
+                        <li><strong>Replace:</strong> Write your own answer if AI is wrong</li>
+                        <li><strong>Flagged:</strong> Students can flag AI for your review</li>
+                      </ul>
+                    </div>
+
+                    {/* View Statistics */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon teal">📊</div>
+                      <h3 className="instruction-title">View Analytics</h3>
+                      <p className="instruction-description">
+                        Track engagement, AI usage, and student participation.
+                      </p>
+                      <ul className="instruction-steps">
+                        <li>Total posts, replies, and AI generations</li>
+                        <li>Most active students leaderboard</li>
+                        <li>AI response endorsement rates</li>
+                        <li>Popular tags and topics</li>
+                      </ul>
+                      <button className="instruction-action" onClick={handleStatisticsClick}>
+                        View Statistics <span className="arrow">→</span>
+                      </button>
+                    </div>
+
+                    {/* Engage with Students */}
+                    <div className="instruction-card">
+                      <div className="instruction-icon red">💬</div>
+                      <h3 className="instruction-title">Engage & Respond</h3>
+                      <p className="instruction-description">
+                        Build an active learning community.
+                      </p>
+                      <ul className="instruction-steps">
+                        <li>Reply to student questions promptly</li>
+                        <li>Endorse helpful student answers</li>
+                        <li>Use followup discussions for clarification</li>
+                        <li>Encourage peer-to-peer learning</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  {/* Quick Tips for Instructors */}
+                  <div className="tips-section">
+                    <h3 className="tips-title">💡 Instructor Tips</h3>
+                    <ul className="tips-list">
+                      <li className="tip-item">
+                        <span className="tip-icon">🔑</span>
+                        Share join codes via syllabus or email
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">✅</span>
+                        Endorse AI answers to build student trust
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">📌</span>
+                        Pin important weekly announcements
+                      </li>
+                      <li className="tip-item">
+                        <span className="tip-icon">📈</span>
+                        Check Statistics for engagement insights
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              ) : (
                 <InstructorPostView
                   posts={regularPosts}
                   pinnedPosts={pinnedPosts}
@@ -630,18 +792,6 @@ const handleCreateCourseSubmit = async (e) => {
                   onInstructorReply={handleInstructorReply}
                   onEndorseReply={handleEndorseReply}
                 />
-              ) : (
-                <>
-                  {/* same “Class at a Glance” placeholder as student, if you want */}
-                  <div className="terms-notice">
-                    <a href="#">Terms of Service</a>: In the event of a conflict between
-                    these Payment Terms and the Terms of Service, these Payment Terms
-                    shall govern.
-                  </div>
-
-                  <h2 className="section-title">Class at a Glance</h2>
-                  {/* cards using your stats object, like the student version */}
-                </>
               )}
             </main>
           </div>
@@ -709,7 +859,7 @@ const handleCreateCourseSubmit = async (e) => {
               <div className="modal">
                 {courseCreateError ? (
                   <>
-                    <h2>Couldn’t Create Course</h2>
+                    <h2>Couldn't Create Course</h2>
                     <p>{courseCreateError}</p>
                     <div className="modal-actions">
                       <button
@@ -779,4 +929,3 @@ const handleCreateCourseSubmit = async (e) => {
 };
 
 export default InstructorDashboard;
-

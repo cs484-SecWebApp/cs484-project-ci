@@ -1,353 +1,321 @@
 .resources-page {
-  background-color: white;
-  min-height: 100vh;
-  padding: 30px 50px;
+  background-color: #f8f9fa;
+  min-height: 100%;
+  padding: 30px 40px;
 }
 
 /* Header */
 .resources-header {
-  margin-bottom: 30px;
+  margin-bottom: 32px;
 }
 
 .resources-header h1 {
-  font-size: 28px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 8px;
+  font-size: 32px;
+  font-weight: 700;
+  color: #1c5a99;
+  margin: 0 0 8px 0;
 }
 
-.university-info {
-  font-size: 14px;
+.course-subtitle {
+  font-size: 16px;
   color: #666;
   margin: 0;
-}
-
-/* Tabs */
-.resources-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 2px solid #e0e0e0;
-  margin-bottom: 30px;
-}
-
-.resource-tab {
-  background: none;
-  border: none;
-  padding: 12px 24px;
-  font-size: 14px;
-  color: #666;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-  position: relative;
-  top: 2px;
-}
-
-.resource-tab:hover {
-  color: #333;
-  background-color: #f5f5f5;
-}
-
-.resource-tab.active {
-  color: #1c5a99;
-  border-bottom-color: #1c5a99;
   font-weight: 500;
 }
 
-/* Content Area */
-.resources-content {
-  max-width: 1000px;
-}
-
-/* Course Info Tab */
-.course-info-tab {
-  padding: 20px 0;
-}
-
-.syllabus-content {
-  background-color: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 30px;
-}
-
-.syllabus-text {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+/* Error Message */
+.resources-error {
+  background-color: #ffebee;
+  border: 1px solid #ffcdd2;
+  border-radius: 10px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  color: #c62828;
   font-size: 14px;
-  line-height: 1.8;
-  color: #333;
-  white-space: pre-wrap;
-  margin: 0;
-}
-
-/* Staff Tab */
-.staff-tab {
-  padding: 20px 0;
-}
-
-.staff-list {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.staff-card {
-  display: flex;
-  gap: 20px;
-  padding: 24px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  background-color: #fafafa;
-  transition: box-shadow 0.2s;
-}
-
-.staff-card:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.staff-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-  background-color: #1c5a99;
-  color: white;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  font-weight: bold;
-  flex-shrink: 0;
+  gap: 10px;
 }
 
-.staff-info {
+.resources-error::before {
+  content: '⚠️';
+  font-size: 18px;
+}
+
+/* ============================================
+   UPLOAD FORM - Instructor Only
+   ============================================ */
+
+.resource-upload-form {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  margin-bottom: 32px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e0e0e0;
+}
+
+.upload-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.upload-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   flex: 1;
+  min-width: 200px;
 }
 
-.staff-name {
-  font-size: 20px;
-  font-weight: 600;
-  color: #333;
-  margin: 0 0 4px 0;
-}
-
-.staff-role {
+.upload-field label {
   font-size: 14px;
-  color: #666;
-  margin: 0 0 16px 0;
-  font-style: italic;
+  font-weight: 600;
+  color: #333;
 }
 
-.staff-details {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.detail-row {
-  display: flex;
-  gap: 8px;
+/* Custom File Input */
+.upload-field input[type="file"] {
+  padding: 12px 16px;
+  border: 2px dashed #d0d0d0;
+  border-radius: 10px;
   font-size: 14px;
-}
-
-.detail-label {
-  font-weight: 600;
-  color: #555;
-  min-width: 100px;
-}
-
-.detail-value {
-  color: #333;
-}
-
-.detail-value a {
-  color: #1c5a99;
-  text-decoration: none;
-}
-
-.detail-value a:hover {
-  text-decoration: underline;
-}
-
-/* Resources Tab */
-.resources-tab {
-  padding: 20px 0;
-}
-
-.resource-section {
-  margin-bottom: 50px;
-}
-
-.section-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-/* Empty Section */
-.empty-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 60px 20px;
+  font-family: inherit;
   background-color: #fafafa;
-  border: 1px dashed #ccc;
-  border-radius: 8px;
-  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
 }
 
-.empty-icon {
+.upload-field input[type="file"]:hover {
+  border-color: #1c5a99;
+  background-color: #f0f7ff;
+}
+
+.upload-field input[type="file"]:focus {
+  outline: none;
+  border-color: #1c5a99;
+  box-shadow: 0 0 0 4px rgba(28, 90, 153, 0.1);
+}
+
+/* Text Input */
+.upload-field input[type="text"] {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: #fafafa;
+  transition: all 0.2s;
+}
+
+.upload-field input[type="text"]:hover {
+  border-color: #ccc;
+}
+
+.upload-field input[type="text"]:focus {
+  outline: none;
+  border-color: #1c5a99;
+  background-color: white;
+  box-shadow: 0 0 0 4px rgba(28, 90, 153, 0.1);
+}
+
+.upload-field input[type="text"]::placeholder {
+  color: #999;
+}
+
+/* Upload Button */
+.upload-button {
+  padding: 12px 28px;
+  background: linear-gradient(135deg, #1c5a99 0%, #2980b9 100%);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.upload-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(28, 90, 153, 0.3);
+}
+
+.upload-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.upload-button::before {
+  content: '⬆';
+  font-size: 16px;
+}
+
+/* ============================================
+   RESOURCES LIST / TABLE
+   ============================================ */
+
+.resources-list-container {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border: 1px solid #e0e0e0;
+}
+
+.resources-loading,
+.resources-empty {
+  padding: 60px 40px;
+  text-align: center;
+  color: #999;
+  font-size: 15px;
+}
+
+.resources-empty::before {
+  content: '📁';
+  display: block;
   font-size: 48px;
   margin-bottom: 16px;
   opacity: 0.5;
 }
 
-.empty-section p {
-  font-size: 14px;
-  color: #666;
-  margin: 0;
-}
-
-/* Resource List */
-.resource-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.resource-item {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
-  background-color: #fafafa;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.resource-item:hover {
-  background-color: #f0f0f0;
-  border-color: #ccc;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.resource-icon {
-  font-size: 28px;
-}
-
-.resource-info {
-  flex: 1;
-}
-
-.resource-name {
-  font-size: 15px;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 4px;
-}
-
-.resource-date {
-  font-size: 13px;
-  color: #666;
-}
-
-/* Lecture Notes Table */
-.lecture-notes-table {
+/* Resources Table */
+.resources-table {
   width: 100%;
   border-collapse: collapse;
-  background-color: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  overflow: hidden;
 }
 
-.lecture-notes-table thead {
-  background-color: #f5f5f5;
+.resources-table thead {
+  background-color: #f8f9fa;
+  border-bottom: 2px solid #e0e0e0;
 }
 
-.lecture-notes-table th {
+.resources-table th {
   padding: 16px 20px;
   text-align: left;
   font-size: 13px;
   font-weight: 600;
-  color: #555;
-  border-bottom: 2px solid #e0e0e0;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.lecture-notes-table tbody tr {
+.resources-table tbody tr {
   border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
   transition: background-color 0.2s;
 }
 
-.lecture-notes-table tbody tr:hover {
-  background-color: #f9f9f9;
-}
-
-.lecture-notes-table tbody tr:last-child {
+.resources-table tbody tr:last-child {
   border-bottom: none;
 }
 
-.lecture-notes-table td {
-  padding: 14px 20px;
+.resources-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.resources-table td {
+  padding: 16px 20px;
   font-size: 14px;
   color: #333;
+  vertical-align: middle;
 }
 
-.lecture-link {
+/* Resource Actions */
+.resource-actions {
+  display: flex;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.resource-download-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background-color: #e3f2fd;
+  border-radius: 8px;
   color: #1c5a99;
   text-decoration: none;
+  font-size: 13px;
   font-weight: 500;
+  transition: all 0.2s;
 }
 
-.lecture-link:hover {
-  text-decoration: underline;
+.resource-download-link:hover {
+  background-color: #bbdefb;
+  color: #0d47a1;
 }
 
-.lecture-date {
-  color: #666;
-  min-width: 120px;
+.resource-download-link::before {
+  content: '⬇';
+  font-size: 12px;
 }
 
-/* Responsive */
+.resource-delete-button {
+  padding: 8px 16px;
+  background-color: #ffebee;
+  border: none;
+  border-radius: 8px;
+  color: #c62828;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.resource-delete-button:hover {
+  background-color: #ffcdd2;
+  color: #b71c1c;
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
 @media (max-width: 768px) {
   .resources-page {
-    padding: 20px 20px;
+    padding: 20px;
   }
 
   .resources-header h1 {
-    font-size: 22px;
+    font-size: 26px;
   }
 
-  .staff-card {
+  .upload-row {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .upload-field {
+    min-width: 100%;
+  }
+
+  .upload-button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .resources-table th,
+  .resources-table td {
+    padding: 12px 16px;
+  }
+
+  .resource-actions {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .resource-download-link,
+  .resource-delete-button {
+    width: 100%;
     text-align: center;
-  }
-
-  .staff-avatar {
-    margin: 0 auto;
-  }
-
-  .detail-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .detail-label {
-    min-width: auto;
-  }
-
-  .lecture-notes-table {
-    font-size: 12px;
-  }
-
-  .lecture-notes-table th,
-  .lecture-notes-table td {
-    padding: 10px 12px;
+    justify-content: center;
   }
 }

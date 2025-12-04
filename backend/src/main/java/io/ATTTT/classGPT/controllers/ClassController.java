@@ -57,14 +57,16 @@ public class ClassController {
     }
 
     @GetMapping("/mine")
-    public List<CourseSummary> myCourses(Principal principal) {
+    public List<CourseWithJoinResponse> myCourses(Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
         return enrollmentRepository.findByAccountId(me.getId())
                 .stream()
                 .map(Enrollment::getCourse)
-                .map(c -> new CourseSummary(c.getId(), c.getCode(), c.getName(), c.getTerm()))
+                .map(c -> new CourseWithJoinResponse(
+                    c.getId(), c.getCode(), c.getName(), c.getTerm(), c.getJoinCode()
+                ))
                 .toList();
     }
 
