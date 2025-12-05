@@ -150,3 +150,4 @@ target/
 out/
 # OS
 .DS_Store
+backend/src/main/resources/LocalApplication.properties
