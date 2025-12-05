@@ -1,39 +1,64 @@
 package io.ATTTT.classGPT.controllers;
 
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
+import io.ATTTT.classGPT.services.GeminiService;
+import io.ATTTT.classGPT.services.CourseService;
+import io.ATTTT.classGPT.models.Course;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import reactor.core.publisher.Flux;
 
 @RestController
-@RequestMapping("/api/llm") // optional but nicer for frontend routing
+@RequestMapping("/api/llm")
+@RequiredArgsConstructor
 public class ChatController {
 
-    private final ChatClient chatClient;
+    private final GeminiService geminiService;
+    private final CourseService courseService;
 
-    public ChatController(ChatClient chatClient) {
-        this.chatClient = chatClient;
+
+    @PostMapping("/course/{courseId}/chat")
+    public String chatForCourse(@PathVariable Long courseId,
+                                @RequestParam String message) {
+
+        Course course = courseService.getById(courseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        String courseName = course.getName();
+        String storeName = course.getFileSearchStoreName();
+
+        return geminiService.answerForCourse(
+                courseName,
+                storeName,
+                message,
+                "course " + courseId + " chat"
+        );
     }
 
-    @PostMapping("/chat")
-    public String chat(@RequestParam String message) {
-        return chatClient
-                .prompt()
-                .system("You are ClassGPT, a helpful TA for UIC courses.")
-                .user(message)
-                .call()
-                .content();
-    }
 
     @GetMapping(
-            value = "/stream",
+            value = "/course/{courseId}/stream",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
     )
-    public Flux<String> chatWithStream(@RequestParam String message) {
-        return chatClient
-                .prompt()
-                .user(message)
-                .stream()
-                .content();
+    public Flux<String> chatForCourseStream(@PathVariable Long courseId,
+                                            @RequestParam String message) {
+
+        Course course = courseService.getById(courseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        String courseName = course.getName();
+        String storeName = course.getFileSearchStoreName();
+
+        String answer = geminiService.answerForCourse(
+                courseName,
+                storeName,
+                message,
+                "course " + courseId + " stream"
+        );
+
+
+        return Flux.just(answer);
     }
 }

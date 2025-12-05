@@ -21,8 +21,6 @@ public class Resource {
 
     private String originalFilename;
 
-    private String storageKey;
-
     private String contentType;
 
     private long sizeBytes;
@@ -34,4 +32,12 @@ public class Resource {
     private Account uploadedBy;
 
     private LocalDateTime uploadedAt;
+
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    private byte[] data;
+
+    @Lob
+    @Basic(fetch = FetchType.LAZY)
+    private String extractedText;
 }

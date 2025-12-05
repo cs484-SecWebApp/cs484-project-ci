@@ -678,6 +678,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
                 <PostView
                   post={selectedPost}
                   currentUser={userName || 'User'}
+                  courseId={activeCourse.id}
                   onBack={() => setSelectedPost(null)}
                   onLLMReply={handleLLMReply}
                   onFollowupSubmit={handleFollowupSubmit}

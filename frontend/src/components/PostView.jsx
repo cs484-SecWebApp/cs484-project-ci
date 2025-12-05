@@ -7,6 +7,7 @@ const API_BASE = 'http://localhost:8080';
 const PostView = ({
   post,
   currentUser,
+  courseId,   
   onBack,
   onLLMReply,
   onFollowupSubmit,
@@ -370,6 +371,7 @@ const PostView = ({
       {isChatOpen && chatAiReply && (
         <ChatWidget
           post={post}
+          courseId={courseId} 
           aiReply={chatAiReply}
           onClose={() => setIsChatOpen(false)}
         />

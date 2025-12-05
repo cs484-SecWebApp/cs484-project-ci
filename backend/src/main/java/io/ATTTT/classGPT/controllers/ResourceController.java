@@ -92,7 +92,7 @@ public class ResourceController {
     }
 
     @GetMapping("/{resourceId}/download")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadResource(
+    public ResponseEntity<byte[]> downloadResource(
             @PathVariable Long courseId,
             @PathVariable Long resourceId,
             Principal principal) {
@@ -111,15 +111,18 @@ public class ResourceController {
             throw new ResponseStatusException(FORBIDDEN);
         }
 
-        org.springframework.core.io.Resource file = fileService.loadAsResource(r.getStorageKey());
+        if (r.getData() == null) {
+            throw new ResponseStatusException(NOT_FOUND, "Resource has no file data");
+        }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + r.getOriginalFilename() + "\"")
                 .contentType(MediaType.parseMediaType(
                         r.getContentType() != null ? r.getContentType() : "application/octet-stream"))
-                .body(file);
+                .body(r.getData());
     }
+
 
     @DeleteMapping("/{resourceId}")
     public ResponseEntity<Void> deleteResource(@PathVariable Long courseId,
