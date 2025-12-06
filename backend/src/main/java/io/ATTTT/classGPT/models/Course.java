@@ -32,4 +32,6 @@ public class Course {
 
     @OneToMany(mappedBy = "course")
     private List<Post> posts;
+
+    private String fileSearchStoreName;
 }

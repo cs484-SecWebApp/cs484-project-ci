@@ -48,7 +48,6 @@ public class Post{
 
     private int upVotes;
 
-
     @ManyToOne
     @JoinColumn(name = "account_id", referencedColumnName = "id", nullable = false)
     private Account account;
@@ -56,6 +55,18 @@ public class Post{
     @OneToMany(mappedBy = "post", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @JsonManagedReference
     private List<Replies> replies = new ArrayList<>();
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Post)) return false;
+        return id != null && id.equals(((Post) o).getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
 
     @Override
     public String toString(){
@@ -81,6 +92,15 @@ public class Post{
 
     @ManyToOne(optional = false)
     private Course course;
+
+
+    public LocalDateTime getModifiedAt() {
+        return modifiedAt;
+    }
+
+    public void setModifiedAt(LocalDateTime modifiedAt) {
+        this.modifiedAt = modifiedAt;
+    }
 
 
 }

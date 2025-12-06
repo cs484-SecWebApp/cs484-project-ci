@@ -553,3 +553,148 @@
     margin-left: 0;
   }
 }
+
+/* ============================================
+   BADGE STYLES FOR AI/INSTRUCTOR RESPONSES
+   ============================================ */
+
+/* Endorsed Badge - green pill */
+.endorsed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(76, 175, 80, 0.3);
+}
+
+/* Instructor-AI Badge - purple gradient */
+.instructor-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(156, 39, 176, 0.3);
+}
+
+/* Instructor Badge - yellow/gold */
+.instructor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #333;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(255, 193, 7, 0.3);
+}
+
+/* Flagged Badge - red/orange */
+.flagged-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
+}
+
+/* Instructor-AI Answer styling - purple */
+.followup-item.instructor-ai-answer {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border-color: #ba68c8;
+  border-left: 3px solid #9c27b0;
+}
+
+.followup-item.instructor-ai-answer .followup-author {
+  color: #7b1fa2 !important;
+  font-weight: 600;
+}
+
+/* Endorsed AI Reply - green tint */
+.followup-item.ai-reply.endorsed {
+  background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+  border-color: #81c784;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.3);
+}
+
+/* Instructor Answer styling - yellow */
+.followup-item.instructor-answer {
+  background: linear-gradient(135deg, #fffbea 0%, #fff8e1 100%) !important;
+  border-color: #ffc107 !important;
+  border-left: 3px solid #ffc107;
+}
+
+.followup-item.instructor-answer .followup-author {
+  color: #f57c00 !important;
+  font-weight: 600;
+}
+
+/* Flagged Reply - orange tint */
+.followup-item.flagged-reply {
+  background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+  border-color: #ffb74d;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.3);
+}
+
+/* Endorsement/Verification Messages */
+.endorsement-message {
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 1px solid #a5d6a7;
+  color: #2e7d32;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+.endorsement-message.instructor-ai-message {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border: 1px solid #ce93d8;
+  color: #6a1b9a;
+}
+
+/* Followup Actions */
+.followup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.endorse-btn {
+  background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.endorse-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}

@@ -11,7 +11,7 @@ import io.ATTTT.classGPT.services.EnrollmentService;
 import io.ATTTT.classGPT.services.GeminiService;
 import io.ATTTT.classGPT.services.PostService;
 import io.ATTTT.classGPT.services.CourseService;
-import io.ATTTT.classGPT.services.AILearningService;
+import io.ATTTT.classGPT.services.PostLikesService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -43,54 +43,24 @@ public class PostController {
     private final RepliesRepository repliesRepository;
     private final EnrollmentService enrollmentService;
     private final CourseService courseService;
-    private final AILearningService aiLearningService;
+    private final PostLikesService postLikesService;
 
     // ============================================
-    // AI LEARNING ENDPOINTS
+    // HELPER METHODS
     // ============================================
 
-    /**
-     * Get training data for AI improvement (for a specific course)
-     */
-    @GetMapping("/classes/{courseId}/ai-training-data")
-    public ResponseEntity<List<AILearningService.TrainingExample>> getAITrainingData(
-            @PathVariable Long courseId,
-            Principal principal) {
-
-        Account account = accountService.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-
-        if (!account.hasRole("ROLE_ADMIN")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-        List<AILearningService.TrainingExample> data = aiLearningService.getTrainingDataForCourse(courseId);
-        return ResponseEntity.ok(data);
-    }
-
-    /**
-     * Get AI training statistics
-     */
-    @GetMapping("/classes/{courseId}/ai-training-stats")
-    public ResponseEntity<AILearningService.TrainingStats> getAITrainingStats(
-            @PathVariable Long courseId,
-            Principal principal) {
-
-        Account account = accountService.findByEmail(principal.getName())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
-
-        if (!account.hasRole("ROLE_ADMIN")) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
-        }
-
-        AILearningService.TrainingStats stats = aiLearningService.getTrainingStats(courseId);
-        return ResponseEntity.ok(stats);
-    }
-
-    private PostSummary toPostSummary(Post p) {
+    private PostSummary toPostSummary(Post p, Account currentUser) {
         var course = p.getCourse();
         var author = p.getAccount();
         int replyCount = (p.getReplies() != null) ? p.getReplies().size() : 0;
+        var replies = p.getReplies() != null
+                ? p.getReplies().stream()
+                .map(this::toReplySummary)
+                .toList()
+                : List.<ReplySummary>of();
+
+        boolean currentUserLiked = currentUser != null &&
+                postLikesService.hasUserLiked(p.getId(), currentUser.getId());
 
         return new PostSummary(
                 p.getId(),
@@ -103,7 +73,11 @@ public class PostController {
                 author != null ? author.getFirstName() : null,
                 author != null ? author.getLastName()  : null,
                 p.getCreatedAt(),
-                replyCount
+                p.getModifiedAt(),
+                replies.size(),
+                replies,
+                p.getUpVotes(),
+                currentUserLiked
         );
     }
 
@@ -132,12 +106,24 @@ public class PostController {
         );
     }
 
+    private Account getCurrentUser(Principal principal) {
+        if (principal == null) {
+            return null;
+        }
+        return accountService.findByEmail(principal.getName()).orElse(null);
+    }
+
+    // ============================================
+    // POST CRUD ENDPOINTS
+    // ============================================
 
     @GetMapping
-    public List<PostSummary> getAllPosts() {
+    public List<PostSummary> getAllPosts(Principal principal) {
+        Account currentUser = getCurrentUser(principal);
+
         return postService.getAll()
                 .stream()
-                .map(this::toPostSummary)
+                .map(p -> toPostSummary(p, currentUser))
                 .toList();
     }
 
@@ -149,7 +135,8 @@ public class PostController {
     }
 
     @GetMapping("/classes/{courseId}")
-    public List<Post> getPostsForCourse(@PathVariable Long courseId, Principal principal) {
+    public List<PostSummary> getPostsForCourse(@PathVariable Long courseId,
+                                               Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
@@ -157,24 +144,32 @@ public class PostController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
-        return postService.getPostsForCourse(courseId);
-    }
+        List<Post> posts = postService.getPostsForCourse(courseId);
 
+        log.info("Returning {} posts for course {}", posts.size(), courseId);
+        posts.forEach(p -> log.info("  post id={} title='{}'", p.getId(), p.getTitle()));
+
+        return posts.stream()
+                .map(p -> toPostSummary(p, me))
+                .toList();
+    }
 
     @PutMapping("/{id}")
     public ResponseEntity<PostSummary> updatePost(@PathVariable Long id,
-                                                  @RequestBody Post incoming) {
+                                                  @RequestBody Post incoming,
+                                                  Principal principal) {
+        Account currentUser = getCurrentUser(principal);
 
         return postService.getById(id)
                 .map(existing -> {
                     existing.setTitle(incoming.getTitle());
                     existing.setBody(incoming.getBody());
+                    existing.setModifiedAt(LocalDateTime.now());
                     Post saved = postService.save(existing);
-                    return ResponseEntity.ok(toPostSummary(saved));
+                    return ResponseEntity.ok(toPostSummary(saved, currentUser));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
-
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Object> deletePost(@PathVariable Long id) {
@@ -186,6 +181,9 @@ public class PostController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    // ============================================
+    // REPLY ENDPOINTS
+    // ============================================
 
     @PostMapping("/{id}/replies")
     public ResponseEntity<ReplySummary> addReply(@PathVariable Long id,
@@ -218,7 +216,6 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-
     @PostMapping("/{id}/LLMReply")
     public ResponseEntity<ReplySummary> addLLMReply(@PathVariable Long id,
                                                     Principal principal) {
@@ -238,6 +235,9 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
+    // ============================================
+    // ENDORSEMENT ENDPOINT
+    // ============================================
 
     @PutMapping("/{postId}/replies/{replyId}/endorse")
     public ResponseEntity<ReplySummary> endorseReply(@PathVariable Long postId,
@@ -274,7 +274,10 @@ public class PostController {
             reply.setFlaggedBy(null);
             reply.setFlagReason(null);
             
-            log.info("AI response {} endorsed by instructor {}. This is a positive training example.", 
+            // Learning happens automatically via GeminiService RAG:
+            // - Endorsed responses remain in forum context
+            // - GeminiService will include them in future similar questions
+            log.info("AI response {} endorsed by instructor {}. Will be included in future RAG context.", 
                     replyId, account != null ? account.getEmail() : "unknown");
         }
         
@@ -391,6 +394,10 @@ public class PostController {
         return ResponseEntity.ok(llmActivity);
     }
 
+    // ============================================
+    // REVIEW ENDPOINTS
+    // ============================================
+
     /**
      * Mark a reply as reviewed
      */
@@ -427,7 +434,11 @@ public class PostController {
 
     /**
      * Update reply content (instructor editing LLM response)
-     * Keeps llmGenerated=true but marks as edited by instructor
+     * Keeps llmGenerated=true but marks as edited by instructor.
+     * 
+     * LEARNING: The edited response stays in the forum with fromInstructor indicators.
+     * GeminiService will include this in future RAG context, giving it higher priority
+     * via the [INSTRUCTOR ANSWERED] tag in buildThreadDocument().
      */
     @PutMapping("/{postId}/replies/{replyId}")
     public ResponseEntity<ReplySummary> updateReply(
@@ -447,7 +458,7 @@ public class PostController {
         Replies reply = repliesRepository.findById(replyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reply not found"));
 
-        // Store original for AI learning purposes
+        // Store original for reference (can be used for future fine-tuning)
         if (reply.isLlmGenerated() && reply.getOriginalLlmResponse() == null) {
             reply.setOriginalLlmResponse(reply.getBody());
         }
@@ -479,15 +490,22 @@ public class PostController {
 
         Replies saved = repliesRepository.save(reply);
         
-        log.info("AI response {} edited by instructor {}. Original stored for learning.", 
+        // Learning via GeminiService RAG:
+        // This edited response will be included in future similar questions
+        // The instructor edit is stored and the response is now endorsed
+        log.info("AI response {} edited by instructor {}. Will be prioritized in future RAG context.", 
                 replyId, account.getEmail());
 
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
     /**
-     * Replace LLM response entirely with instructor's answer
-     * Sets llmGenerated=false, marks as instructor response
+     * Replace LLM response entirely with instructor's answer.
+     * Sets llmGenerated=false, marks as instructor response.
+     * 
+     * LEARNING: The replacement becomes a true instructor answer.
+     * GeminiService will include this in findRecentInstructorPosts() and
+     * mark it with [INSTRUCTOR ANSWERED] for highest priority in RAG.
      */
     @PutMapping("/{postId}/replies/{replyId}/replace")
     public ResponseEntity<ReplySummary> replaceLLMResponse(
@@ -506,7 +524,7 @@ public class PostController {
         Replies reply = repliesRepository.findById(replyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
 
-        // Store original LLM response for training data (negative example)
+        // Store original LLM response for reference (can be used for future fine-tuning)
         if (reply.isLlmGenerated()) {
             reply.setOriginalLlmResponse(reply.getBody());
             reply.setLlmGenerated(false); // Mark as no longer AI-generated
@@ -521,7 +539,7 @@ public class PostController {
         reply.setReviewedAt(LocalDateTime.now());
         reply.setReviewedBy(account);
         reply.setEndorsed(true);
-        reply.setFromInstructor(true);
+        reply.setFromInstructor(true);  // This is now an instructor answer!
         
         // Clear any flags since instructor has replaced it
         reply.setFlagged(false);
@@ -535,7 +553,10 @@ public class PostController {
 
         Replies saved = repliesRepository.save(reply);
         
-        log.info("AI response {} replaced by instructor {}. Original stored for learning as negative example.", 
+        // Learning via GeminiService RAG:
+        // This is now fromInstructor=true, so it will be picked up by
+        // findRecentInstructorPosts() and given [INSTRUCTOR ANSWERED] priority
+        log.info("AI response {} replaced by instructor {}. Now marked as instructor answer for RAG.", 
                 replyId, account.getEmail());
 
         return ResponseEntity.ok(toReplySummary(saved));
@@ -672,7 +693,31 @@ public class PostController {
 
         Post saved = postService.save(post);
 
-        return ResponseEntity.ok(toPostSummary(saved));
+        return ResponseEntity.ok(toPostSummary(saved, me));
+    }
+
+    // ============================================
+    // LIKE ENDPOINT
+    // ============================================
+
+    @PostMapping("/{postId}/like")
+    public ResponseEntity<LikeResponse> toggleLike(@PathVariable Long postId,
+                                                   Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+
+        boolean liked = postLikesService.toggleLike(postId, account);
+        long likeCount = postLikesService.getLikeCount(postId);
+
+        LikeResponse response = new LikeResponse();
+        response.liked = liked;
+        response.likeCount = likeCount;
+
+        return ResponseEntity.ok(response);
     }
 
     // ============================================
@@ -728,5 +773,11 @@ public class PostController {
         public boolean flagged;
         public boolean reviewed;
         public String replyBody;
+    }
+
+    @Data
+    public static class LikeResponse {
+        public boolean liked;
+        public long likeCount;
     }
 }

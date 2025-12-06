@@ -109,37 +109,68 @@ const PostView = ({
 
   const replyTree = buildReplyingTo(followups);
 
+  // Determine the display type for a reply
+  const getReplyDisplayType = (followup) => {
+    if (followup.replacedByInstructor) {
+      return 'instructor'; // Completely replaced by instructor
+    }
+    if (followup.isLLMReply && followup.instructorEdited) {
+      return 'instructor-ai'; // AI edited by instructor
+    }
+    if (followup.isLLMReply && followup.endorsed && !followup.instructorEdited) {
+      return 'ai-endorsed'; // AI endorsed but not edited
+    }
+    if (followup.isLLMReply) {
+      return 'ai'; // Regular AI response
+    }
+    if (followup.fromInstructor) {
+      return 'instructor'; // Regular instructor post
+    }
+    return 'student'; // Student response
+  };
+
   const renderReplies = (nodes, depth = 0) =>
-    nodes.map((followup) => (
+    nodes.map((followup) => {
+      const displayType = getReplyDisplayType(followup);
+      
+      return (
       <div
         key={followup.id}
-        className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''} ${followup.endorsed ? 'endorsed' : ''} ${followup.instructorEdited ? 'edited' : ''} ${followup.flagged ? 'flagged-reply' : ''} ${followup.replacedByInstructor ? 'instructor-answer' : ''}`}
+        className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''} ${followup.endorsed ? 'endorsed' : ''} ${followup.instructorEdited ? 'edited' : ''} ${followup.flagged ? 'flagged-reply' : ''} ${followup.replacedByInstructor ? 'instructor-answer' : ''} ${displayType === 'instructor-ai' ? 'instructor-ai-answer' : ''}`}
         style={{ marginLeft: depth * 24 }}
       >
         <div className="followup-meta">
           <span className="followup-author">
-            {followup.replacedByInstructor 
-              ? `👨‍🏫 ${followup.editedByName || 'Instructor'}`
-              : (followup.isLLMReply ? 'AI Tutor' : followup.author)}
+            {/* Author display based on type */}
+            {displayType === 'instructor' && `👨‍🏫 ${followup.editedByName || followup.author || 'Instructor'}`}
+            {displayType === 'instructor-ai' && '🤖 Instructor-AI'}
+            {displayType === 'ai-endorsed' && '🤖 AI Tutor'}
+            {displayType === 'ai' && '🤖 AI Tutor'}
+            {displayType === 'student' && followup.author}
           </span>
-          {/* Replaced by Instructor Badge - show as instructor answer */}
-          {followup.replacedByInstructor && (
+          
+          {/* Badge: Instructor Answer (replaced AI or direct instructor post) */}
+          {displayType === 'instructor' && followup.replacedByInstructor && (
             <span className="instructor-badge">Instructor Answer</span>
           )}
-          {/* Endorsed Badge - for AI responses */}
-          {followup.isLLMReply && !followup.replacedByInstructor && followup.endorsed && (
-            <span className="endorsed-badge">✓ INSTRUCTOR APPROVED</span>
-          )}
-          {/* Edited by Professor Badge */}
-          {followup.isLLMReply && followup.instructorEdited && !followup.replacedByInstructor && (
-            <span className="edited-badge">
+          
+          {/* Badge: Instructor-AI Answer (edited by instructor) */}
+          {displayType === 'instructor-ai' && (
+            <span className="instructor-ai-badge">
               ✏️ Edited by {followup.editedByName || 'Instructor'}
             </span>
           )}
-          {/* Flagged Badge */}
+          
+          {/* Badge: AI Endorsed (approved but not edited) */}
+          {displayType === 'ai-endorsed' && (
+            <span className="endorsed-badge">✓ INSTRUCTOR APPROVED</span>
+          )}
+          
+          {/* Badge: Flagged (under review) */}
           {followup.isLLMReply && followup.flagged && !followup.endorsed && (
             <span className="flagged-badge">🚩 Under Review</span>
           )}
+          
           <span className="followup-time">
             {followup.editedAt ? `${followup.editedAt}` : followup.time}
           </span>
@@ -147,13 +178,15 @@ const PostView = ({
 
         <div className="followup-content">{followup.content}</div>
 
-        {/* Endorsement Message for AI replies */}
-        {followup.isLLMReply && !followup.replacedByInstructor && followup.endorsed && (
+        {/* Verification Message based on type */}
+        {displayType === 'instructor-ai' && (
+          <div className="endorsement-message instructor-ai-message">
+            ✓ This AI response was reviewed and improved by {followup.editedByName || 'your instructor'}
+          </div>
+        )}
+        {displayType === 'ai-endorsed' && (
           <div className="endorsement-message">
-            {followup.instructorEdited 
-              ? `✓ This response was reviewed and improved by ${followup.editedByName || 'your instructor'}`
-              : '✓ This response has been verified by your instructor'
-            }
+            ✓ This AI response has been verified by your instructor
           </div>
         )}
 
@@ -162,9 +195,9 @@ const PostView = ({
           onClick={() => {
             setReplyingToId(followup.id);
             setReplyingToAuthor(
-              followup.replacedByInstructor 
-                ? (followup.editedByName || 'Instructor')
-                : (followup.isLLMReply ? 'AI Tutor' : followup.author)
+              displayType === 'instructor' ? (followup.editedByName || followup.author || 'Instructor') :
+              displayType === 'instructor-ai' ? 'Instructor-AI' :
+              displayType.startsWith('ai') ? 'AI Tutor' : followup.author
             );
           }}
         >
@@ -199,7 +232,8 @@ const PostView = ({
           followup.children.length > 0 &&
           renderReplies(followup.children, depth + 1)}
       </div>
-    ));
+    );
+  });
 
   return (
     <div className="post-view">

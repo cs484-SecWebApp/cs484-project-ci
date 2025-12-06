@@ -17,18 +17,24 @@ import './LLMNotifications.css';
 const API_BASE = 'http://localhost:8080';
 
 const InstructorDashboard = ({ onLogout, userName }) => {
-const normalizePosts = (apiPosts) =>
+
+
+  const normalizePosts = (apiPosts) =>
   apiPosts.map((p) => {
-    const author = p.account
-      ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
-      : 'Unknown';
+    // Author comes from PostSummary
+    const author =
+      (p.authorFirstName || p.authorLastName)
+        ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
+        : 'Unknown';
 
     const isInstructorPost = p.account && p.account.authorities
       ? p.account.authorities.some((auth) => auth.name === 'ROLE_ADMIN')
       : false;
 
     const created = p.createdAt ? new Date(p.createdAt) : null;
+    const modified = p.modifiedAt ? new Date(p.modifiedAt) : null;
 
+    // Replies come from the DTO ReplySummary
     const followups = (p.replies || []).map((r) => {
       const isLLMReply = Boolean(r.llmGenerated);
 
@@ -77,14 +83,6 @@ const normalizePosts = (apiPosts) =>
       };
     });
 
-    const studentReplies = followups.filter(
-      (r) => !r.fromInstructor && !r.isLLMReply
-    );
-    const instructorReplies = followups.filter(
-      (r) => r.fromInstructor && !r.isLLMReply
-    );
-    const aiReplies = followups.filter((r) => r.isLLMReply);
-
     return {
       id: p.id,
       number: p.id,
@@ -95,22 +93,24 @@ const normalizePosts = (apiPosts) =>
       time: created
         ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '',
-      updatedAt: p.modifiedAt || '',
+      // we don't have modifiedAt yet, so just re-use createdAt for now
+      updatedAt: created
+        ? created.toLocaleDateString()
+        : '',
+      createdAt: p.createdAt,
+      modifiedAt: p.modifiedAt,
       author,
-      isInstructorPost,
-      tag: p.tag || 'general',
-      tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
-      isPinned: p.pinned || p.isPinned || false,
+      // keep simple tag info for now
+      tag: 'general',
+      tags: ['general'],
+      isPinned: false,
       isUnread: false,
-      upvotes: p.upVotes ?? 0,
+      upvotes: p.upVotes || 0,
+      currentUserLiked: p.currentUserLiked || false,
       views: 0,
-
-  
-      studentReplies,
-      instructorReplies,
-      aiReplies,
-      followupDiscussions: [],  // unused for now
-
+      aiAnswer: null,
+      studentAnswer: null,
+      instructorAnswer: null,
       followups,
     };
   });
@@ -304,6 +304,54 @@ const normalizePosts = (apiPosts) =>
     }
   };
 
+  const handleLikePost = async (postId) => {
+    try {
+      const response = await axios.post(
+        `http://localhost:8080/api/posts/${postId}/like`,
+        {},
+        { withCredentials: true }
+      );
+
+      const { liked, likeCount } = response.data;
+
+      setPosts(prevPosts =>
+        prevPosts.map(p =>
+          p.id === postId
+            ? { ...p, currentUserLiked: liked, upvotes: likeCount }
+            : p
+        )
+      );
+
+
+      if (selectedPost && selectedPost.id === postId) {
+        setSelectedPost(prev => ({
+          ...prev,
+          currentUserLiked: liked,
+          upvotes: likeCount,
+        }));
+      }
+    } catch (err) {
+      console.error('Error liking post:', err);
+      setError('Error updating like');
+    }
+  };
+
+  const handlePostUpdated = (updatedPostData) => {
+    const normalizedPost = normalizePosts([updatedPostData])[0];
+    
+    // Update posts array
+    setPosts(prevPosts =>
+      prevPosts.map(p =>
+        p.id === normalizedPost.id ? normalizedPost : p
+      )
+    );
+    
+    // Update selected post
+    if (selectedPost && selectedPost.id === normalizedPost.id) {
+      setSelectedPost(normalizedPost);
+    }
+  };
+
   const handleNewPostSubmit = async (title, body) => {
     if (!activeCourse) return; 
 
@@ -325,7 +373,7 @@ const normalizePosts = (apiPosts) =>
     }
   };
 
-  // Sample statistics (still fake)
+
   const stats = {
     allCaughtUp: true,
     unreadPosts: 0,
@@ -474,12 +522,34 @@ const handleCreateCourseSubmit = async (e) => {
 };
 
 
+  // ===== SEARCH FILTER LOGIC =====
+  const filterPosts = (postsToFilter) => {
+    if (!searchQuery.trim()) return postsToFilter;
+    
+    const query = searchQuery.toLowerCase();
+    return postsToFilter.filter(post => {
+      // Search in title
+      if (post.title && post.title.toLowerCase().includes(query)) return true;
+      
+      // Search in content/body
+      if (post.content && post.content.toLowerCase().includes(query)) return true;
+      
+      // Search in author name
+      if (post.author && post.author.toLowerCase().includes(query)) return true;
+      
+      // Search in tags
+      if (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query))) return true;
+      
+      return false;
+    });
+  };
+
   const filteredPosts =
     selectedFilter === 'all'
-      ? posts
-      : posts.filter((post) => post.tags && post.tags.includes(selectedFilter));
+      ? filterPosts(posts)
+      : filterPosts(posts.filter((post) => post.tags && post.tags.includes(selectedFilter)));
 
-  const pinnedPosts = posts.filter((post) => post.isPinned);
+  const pinnedPosts = filteredPosts.filter((post) => post.isPinned);
   const regularPosts = filteredPosts.filter((post) => !post.isPinned);
 
   const effectiveSelectedPost =
@@ -635,7 +705,40 @@ const handleCreateCourseSubmit = async (e) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button 
+                      className="clear-search-btn"
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        color: '#999',
+                        padding: '4px'
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
+
+                {searchQuery && (
+                  <div style={{ 
+                    padding: '8px 16px', 
+                    fontSize: '12px', 
+                    color: '#666',
+                    background: '#f5f5f5',
+                    borderRadius: '4px',
+                    margin: '0 16px 8px'
+                  }}>
+                    Found {pinnedPosts.length + regularPosts.length} result{pinnedPosts.length + regularPosts.length !== 1 ? 's' : ''} for "{searchQuery}"
+                  </div>
+                )}
 
                 <div className="posts-section">
                   <div className="posts-header">
@@ -645,41 +748,66 @@ const handleCreateCourseSubmit = async (e) => {
                     <button className="menu-icon">⋮</button>
                   </div>
 
-                  <div className="pinned-section">
-                    <div className="section-header">
-                      <span className="dropdown-icon">▼</span>
-                      <span>Pinned</span>
-                    </div>
-                    {pinnedPosts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="pinned-post"
-                        onClick={() => handlePostClick(post.id)}
-                      >
-                        <span className="pin-icon">📌</span>
-                        <div className="post-info">
-                          <div className="post-title">{post.title}</div>
-                          {post.preview && (
-                            <div className="post-preview">{post.preview}</div>
-                          )}
-                        </div>
-                        <div className="post-date">{post.time}</div>
+                  {pinnedPosts.length > 0 && (
+                    <div className="pinned-section">
+                      <div className="section-header">
+                        <span className="dropdown-icon">▼</span>
+                        <span>Pinned</span>
                       </div>
-                    ))}
-                  </div>
+                      {pinnedPosts.map((post) => (
+                        <div
+                          key={post.id}
+                          className="pinned-post"
+                          onClick={() => handlePostClick(post.id)}
+                        >
+                          <span className="pin-icon">📌</span>
+                          <div className="post-info">
+                            <div className="post-title">{post.title}</div>
+                            {post.preview && (
+                              <div className="post-preview">{post.preview}</div>
+                            )}
+                          </div>
+                          <div className="post-date">{post.time}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="posts-list">
                     <div className="section-header">
                       <span className="dropdown-icon">▼</span>
-                      <span>Today</span>
+                      <span>{searchQuery ? 'Search Results' : 'Today'}</span>
                     </div>
                     {regularPosts.length === 0 && pinnedPosts.length === 0 ? (
                       <div className="posts-list-empty">
                         <div className="empty-icon">📝</div>
-                        <div>No posts yet in this class.</div>
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
-                          Click "New Post" to start a discussion!
+                        <div>
+                          {searchQuery 
+                            ? `No posts found matching "${searchQuery}"` 
+                            : 'No posts yet in this class.'}
                         </div>
+                        {!searchQuery && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                            Click "New Post" to start a discussion!
+                          </div>
+                        )}
+                        {searchQuery && (
+                          <button 
+                            onClick={() => setSearchQuery('')}
+                            style={{
+                              marginTop: '12px',
+                              padding: '6px 12px',
+                              background: '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Clear Search
+                          </button>
+                        )}
                       </div>
                     ) : (
                       regularPosts.map((post) => (
@@ -868,6 +996,8 @@ const handleCreateCourseSubmit = async (e) => {
                   onLLMReply={handleLLMReply}
                   onInstructorReply={handleInstructorReply}
                   onEndorseReply={handleEndorseReply}
+                  onLikePost={handleLikePost}
+                  onPostUpdated={handlePostUpdated}
                 />
               )}
             </main>

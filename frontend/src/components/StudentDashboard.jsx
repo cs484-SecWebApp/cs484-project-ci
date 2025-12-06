@@ -12,16 +12,20 @@ import './WelcomeSection.css';
 const API_BASE = 'http://localhost:8080';
 
 const StudentDashboard = ({ onLogout, userName }) => {
-  const normalizePosts = (apiPosts) =>
-    apiPosts.map((p) => {
-      const author = p.account
-        ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
+const normalizePosts = (apiPosts) =>
+  apiPosts.map((p) => {
+    // Author comes from PostSummary
+    const author =
+      (p.authorFirstName || p.authorLastName)
+        ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
         : 'Unknown';
 
-      const created = p.createdAt ? new Date(p.createdAt) : null;
+    const created = p.createdAt ? new Date(p.createdAt) : null;
+    const modified = p.modifiedAt ? new Date(p.modifiedAt) : null;
 
-      const followups = (p.replies || []).map((r) => {
-        const isLLMReply = Boolean(r.llmGenerated);
+  
+    const followups = (p.replies || []).map((r) => {
+      const isLLMReply = Boolean(r.llmGenerated);
 
         // Determine author name based on reply state
         let authorName;
@@ -68,29 +72,37 @@ const StudentDashboard = ({ onLogout, userName }) => {
         };
       });
 
-      return {
-        id: p.id,
-        number: p.id,
-        type: 'question',
-        title: p.title,
-        preview: p.body ? p.body.slice(0, 120) : '',
-        content: p.body,
-        time: created
-          ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '',
-        updatedAt: p.modifiedAt || '',
-        author,
-        tag: p.tag || 'general',
-        tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
-        isPinned: p.pinned || p.isPinned || false,
-        isUnread: false,
-        upvotes: p.upVotes ?? 0,
-        views: 0,
-        LLMGeneratedAnswer: p.LLMGeneratedAnswerText,
-        studentAnswer: p.studentAnswerText,
-        followups,
-      };
-    });
+    return {
+      id: p.id,
+      number: p.id,
+      type: 'question',
+      title: p.title,
+      preview: p.body ? p.body.slice(0, 120) : '',
+      content: p.body,
+      time: created
+        ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '',
+
+      updatedAt: created
+        ? created.toLocaleDateString()
+        : '',
+      createdAt: p.createdAt,
+      modifiedAt: p.modifiedAt,
+      author,
+      tag: 'general',
+      tags: ['general'],
+      isPinned: false,
+      isUnread: false,
+      upvotes: p.upVotes || 0, 
+      currentUserLiked: p.currentUserLiked || false, 
+      views: 0,
+      aiAnswer: null,
+      studentAnswer: null,
+      instructorAnswer: null,
+      followups,
+    };
+  });
+
 
   // ----- classes -----
   const [courses, setCourses] = useState([]);
@@ -121,6 +133,41 @@ const StudentDashboard = ({ onLogout, userName }) => {
   const [flaggingPostId, setFlaggingPostId] = useState(null);
   const [flagReason, setFlagReason] = useState('');
   const [flagLoading, setFlagLoading] = useState(false);
+  const handleLikeUpdated = (postId, liked, likeCount) => {
+  setPosts(prevPosts => 
+    prevPosts.map(p => 
+      p.id === postId 
+        ? { ...p, currentUserLiked: liked, upvotes: likeCount }
+        : p
+    )
+  );
+  
+
+  if (selectedPost && selectedPost.id === postId) {
+    setSelectedPost(prev => ({
+      ...prev,
+      currentUserLiked: liked,
+      upvotes: likeCount
+    }));
+  }
+};
+
+  const handlePostUpdated = (updatedPostData) => {
+    // Normalize the updated post
+    const normalizedPost = normalizePosts([updatedPostData])[0];
+    
+    // Update posts array
+    setPosts(prevPosts =>
+      prevPosts.map(p =>
+        p.id === normalizedPost.id ? normalizedPost : p
+      )
+    );
+    
+    // Update selected post
+    if (selectedPost && selectedPost.id === normalizedPost.id) {
+      setSelectedPost(normalizedPost);
+    }
+  };
 
   // ---------- load enrolled classes ----------
   const loadCourses = async () => {
@@ -134,6 +181,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
 
       const list = res.data || [];
       setCourses(list);
+
 
       if (list.length > 0 && !activeCourse) {
         setActiveCourse(list[0]);       // pick first enrolled course
@@ -171,10 +219,9 @@ const StudentDashboard = ({ onLogout, userName }) => {
 
   useEffect(() => {
     loadCourses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- load posts for the active course ----------
+
   useEffect(() => {
     const fetchPostsForCourse = async () => {
       if (!activeCourse) {
@@ -203,9 +250,9 @@ const StudentDashboard = ({ onLogout, userName }) => {
     };
 
     fetchPostsForCourse();
-  }, [activeCourse]); // re-run when course changes
+  }, [activeCourse]); 
 
-  // ---------- actions that depend on activeCourse ----------
+
   const refetchPostsForActiveCourse = async () => {
     if (!activeCourse) return;
 
@@ -398,8 +445,30 @@ const StudentDashboard = ({ onLogout, userName }) => {
     }
   };
 
-  const pinnedPosts = posts.filter((post) => post.isPinned);
-  const regularPosts = posts.filter((post) => !post.isPinned);
+  // ===== SEARCH FILTER LOGIC =====
+  const filterPosts = (postsToFilter) => {
+    if (!searchQuery.trim()) return postsToFilter;
+    
+    const query = searchQuery.toLowerCase();
+    return postsToFilter.filter(post => {
+      // Search in title
+      if (post.title && post.title.toLowerCase().includes(query)) return true;
+      
+      // Search in content/body
+      if (post.content && post.content.toLowerCase().includes(query)) return true;
+      
+      // Search in author name
+      if (post.author && post.author.toLowerCase().includes(query)) return true;
+      
+      // Search in tags
+      if (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query))) return true;
+      
+      return false;
+    });
+  };
+
+  const pinnedPosts = filterPosts(posts.filter((post) => post.isPinned));
+  const regularPosts = filterPosts(posts.filter((post) => !post.isPinned));
 
   return (
     <div className="student-dashboard">
@@ -548,7 +617,40 @@ const StudentDashboard = ({ onLogout, userName }) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
+                  {searchQuery && (
+                    <button 
+                      className="clear-search-btn"
+                      onClick={() => setSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '8px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: '18px',
+                        color: '#999',
+                        padding: '4px'
+                      }}
+                    >
+                      ×
+                    </button>
+                  )}
                 </div>
+
+                {searchQuery && (
+                  <div style={{ 
+                    padding: '8px 16px', 
+                    fontSize: '12px', 
+                    color: '#666',
+                    background: '#f5f5f5',
+                    borderRadius: '4px',
+                    margin: '0 16px 8px'
+                  }}>
+                    Found {pinnedPosts.length + regularPosts.length} result{pinnedPosts.length + regularPosts.length !== 1 ? 's' : ''} for "{searchQuery}"
+                  </div>
+                )}
 
                 <div className="posts-section">
                   <div className="posts-header">
@@ -558,33 +660,35 @@ const StudentDashboard = ({ onLogout, userName }) => {
                     <button className="menu-icon">⋮</button>
                   </div>
 
-                  <div className="pinned-section">
-                    <div className="section-header">
-                      <span className="dropdown-icon">▼</span>
-                      <span>Pinned</span>
-                    </div>
-                    {pinnedPosts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="pinned-post"
-                        onClick={() => handlePostClick(post.id)}
-                      >
-                        <span className="pin-icon">📌</span>
-                        <div className="post-info">
-                          <div className="post-title">{post.title}</div>
-                          {post.preview && (
-                            <div className="post-preview">{post.preview}</div>
-                          )}
-                        </div>
-                        <div className="post-date">{post.time}</div>
+                  {pinnedPosts.length > 0 && (
+                    <div className="pinned-section">
+                      <div className="section-header">
+                        <span className="dropdown-icon">▼</span>
+                        <span>Pinned</span>
                       </div>
-                    ))}
-                  </div>
+                      {pinnedPosts.map((post) => (
+                        <div
+                          key={post.id}
+                          className="pinned-post"
+                          onClick={() => handlePostClick(post.id)}
+                        >
+                          <span className="pin-icon">📌</span>
+                          <div className="post-info">
+                            <div className="post-title">{post.title}</div>
+                            {post.preview && (
+                              <div className="post-preview">{post.preview}</div>
+                            )}
+                          </div>
+                          <div className="post-date">{post.time}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="posts-list">
                     <div className="section-header">
                       <span className="dropdown-icon">▼</span>
-                      <span>Today</span>
+                      <span>{searchQuery ? 'Search Results' : 'Today'}</span>
                     </div>
                     {loading ? (
                       <div className="posts-list-empty">
@@ -599,10 +703,33 @@ const StudentDashboard = ({ onLogout, userName }) => {
                     ) : regularPosts.length === 0 && pinnedPosts.length === 0 ? (
                       <div className="posts-list-empty">
                         <div className="empty-icon">📝</div>
-                        <div>No posts yet in this class.</div>
-                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
-                          Click "New Post" to start a discussion!
+                        <div>
+                          {searchQuery 
+                            ? `No posts found matching "${searchQuery}"` 
+                            : 'No posts yet in this class.'}
                         </div>
+                        {!searchQuery && (
+                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                            Click "New Post" to start a discussion!
+                          </div>
+                        )}
+                        {searchQuery && (
+                          <button 
+                            onClick={() => setSearchQuery('')}
+                            style={{
+                              marginTop: '12px',
+                              padding: '6px 12px',
+                              background: '#3b82f6',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Clear Search
+                          </button>
+                        )}
                       </div>
                     ) : (
                       regularPosts.map((post) => (
@@ -754,10 +881,13 @@ const StudentDashboard = ({ onLogout, userName }) => {
                 <PostView
                   post={selectedPost}
                   currentUser={userName || 'User'}
+                  courseId={activeCourse.id}
                   onBack={() => setSelectedPost(null)}
                   onLLMReply={handleLLMReply}
                   onFollowupSubmit={handleFollowupSubmit}
                   onFlagAIResponse={openFlagModal}
+                  onLikeUpdated={handleLikeUpdated}
+                  onPostUpdated={handlePostUpdated}
                 />
               ) : (
                 /* Fallback - show welcome if nothing else matches */

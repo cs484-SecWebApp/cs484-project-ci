@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import './ChatWidget.css';
 
-const ChatWidget = ({ post, aiReply, onClose }) => {
+const ChatWidget = ({ post,  courseId, aiReply, onClose }) => {
   const [messages, setMessages] = useState([
     {
       id: 'post',
@@ -20,17 +20,15 @@ const ChatWidget = ({ post, aiReply, onClose }) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  // flag panel state
+
   const [flaggingMessageId, setFlaggingMessageId] = useState(null);
   const [flagNote, setFlagNote] = useState('');
   const [isFlagSubmitting, setIsFlagSubmitting] = useState(false);
 
-
-  const [flagToast, setFlagToast] = useState(null); // { type: 'success' | 'error', text: string }
+  const [flagToast, setFlagToast] = useState(null); 
 
   const showFlagToast = (type, text) => {
     setFlagToast({ type, text });
-    // auto-hide after 3s
     setTimeout(() => setFlagToast(null), 3000);
   };
 
@@ -50,28 +48,54 @@ const ChatWidget = ({ post, aiReply, onClose }) => {
 
     try {
       const prompt = `
-We are discussing this course post.
+          You are answering a follow-up question about a course forum post.
 
----
-Title: ${post.title}
+          Student follow-up question:
+          ${trimmed}
 
-HTML content:
-${post.content}
+          Original post title:
+          ${post.title}
 
-Here was your earlier reply:
-${aiReply}
----
+          Original post HTML content:
+          ${post.content}
 
-Student follow-up question:
-${trimmed}
+          Previous AI reply (for context — do not just repeat it):
+          ${aiReply}
 
-Please respond as a helpful CS course TA.
+          Please respond as a helpful CS course TA: be clear, concise, and focused on the student's question.
       `.trim();
 
+      const effectiveCourseId =
+        courseId ??               
+        post.courseId ??
+        post.course_id ??
+        post.course?.id;
+
+      if (!effectiveCourseId) {
+        console.error('ChatWidget: Missing courseId on post', post);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `err-${Date.now()}`,
+            role: 'assistant',
+            author: 'ClassGPT',
+            text:
+              "Sorry, I couldn't determine which course this post belongs to, " +
+              "so I can't look up the class resources for this question.",
+          },
+        ]);
+        setIsLoading(false);
+        return;
+      }
+
       const res = await fetch(
-        `/api/llm/chat?message=${encodeURIComponent(prompt)}`,
-        { method: 'POST' }
+          `/api/llm/course/${effectiveCourseId}/chat?message=${encodeURIComponent(prompt)}`,
+         { method: 'POST' }
       );
+
+      if (!res.ok) {
+        throw new Error(`LLM request failed with status ${res.status}`);
+      }
 
       const text = await res.text();
 
@@ -224,11 +248,12 @@ Please respond as a helpful CS course TA.
         )}
       </div>
 
-
       {flagToast && (
         <div
           className={`flag-toast ${
-            flagToast.type === 'success' ? 'flag-toast-success' : 'flag-toast-error'
+            flagToast.type === 'success'
+              ? 'flag-toast-success'
+              : 'flag-toast-error'
           }`}
         >
           {flagToast.text}

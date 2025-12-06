@@ -695,6 +695,40 @@
   box-shadow: 0 1px 3px rgba(33, 150, 243, 0.3);
 }
 
+/* Instructor-AI Badge - purple gradient for AI edited by instructor */
+.instructor-ai-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(156, 39, 176, 0.3);
+}
+
+/* Instructor-AI Answer styling */
+.followup-item.instructor-ai-answer {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border-color: #ba68c8;
+  border-left: 3px solid #9c27b0;
+}
+
+.followup-item.instructor-ai-answer .followup-author {
+  color: #7b1fa2 !important;
+  font-weight: 600;
+}
+
+/* Instructor-AI verification message */
+.endorsement-message.instructor-ai-message {
+  background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%);
+  border: 1px solid #ce93d8;
+  color: #6a1b9a;
+}
+
 /* Flagged Badge - orange/yellow pill */
 .flagged-badge {
   display: inline-flex;
