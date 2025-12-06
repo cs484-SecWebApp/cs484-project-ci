@@ -5,11 +5,7 @@ import io.ATTTT.classGPT.models.Account;
 import io.ATTTT.classGPT.models.Post;
 import io.ATTTT.classGPT.models.Replies;
 import io.ATTTT.classGPT.repositories.RepliesRepository;
-import io.ATTTT.classGPT.services.AccountService;
-import io.ATTTT.classGPT.services.EnrollmentService;
-import io.ATTTT.classGPT.services.GeminiService;
-import io.ATTTT.classGPT.services.PostService;
-import io.ATTTT.classGPT.services.CourseService;
+import io.ATTTT.classGPT.services.*;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -44,8 +40,9 @@ public class PostController {
     private final RepliesRepository repliesRepository;
     private final EnrollmentService enrollmentService;
     private final CourseService courseService;
+    private final PostLikesService postLikesService;
 
-    private PostSummary toPostSummary(Post p) {
+    private PostSummary toPostSummary(Post p, Account currentUser) {
         var course = p.getCourse();
         var author = p.getAccount();
         int replyCount = (p.getReplies() != null) ? p.getReplies().size() : 0;
@@ -54,6 +51,9 @@ public class PostController {
                 .map(this::toReplySummary)
                 .toList()
                 : List.<ReplySummary>of();
+
+        boolean currentUserLiked = currentUser != null &&
+                postLikesService.hasUserLiked(p.getId(), currentUser.getId());
 
         return new PostSummary(
                 p.getId(),
@@ -66,8 +66,11 @@ public class PostController {
                 author != null ? author.getFirstName() : null,
                 author != null ? author.getLastName()  : null,
                 p.getCreatedAt(),
+                p.getModifiedAt(),
                 replies.size(),
-                replies
+                replies,
+                p.getUpVotes(),
+                currentUserLiked
         );
     }
 
@@ -87,15 +90,22 @@ public class PostController {
         );
     }
 
-
-    @GetMapping
-    public List<PostSummary> getAllPosts() {
-        return postService.getAll()
-                .stream()
-                .map(this::toPostSummary)
-                .toList();
+    private Account getCurrentUser(Principal principal) {
+        if (principal == null) {
+            return null;
+        }
+        return accountService.findByEmail(principal.getName()).orElse(null);
     }
 
+    @GetMapping
+    public List<PostSummary> getAllPosts(Principal principal) {
+        Account currentUser = getCurrentUser(principal);
+
+        return postService.getAll()
+                .stream()
+                .map(p -> toPostSummary(p, currentUser))
+                .toList();
+    }
 
 
     @GetMapping("/classes/{courseId}")
@@ -114,20 +124,24 @@ public class PostController {
         posts.forEach(p -> log.info("  post id={} title='{}'", p.getId(), p.getTitle()));
 
         return posts.stream()
-                .map(this::toPostSummary)
+                .map(p -> toPostSummary(p, me))
                 .toList();
     }
 
 
     @PutMapping("/{id}")
     public ResponseEntity<PostSummary> updatePost(@PathVariable Long id,
-                                                  @RequestBody Post incoming) {
+                                                  @RequestBody Post incoming,
+                                                  Principal principal) {
+        Account currentUser = getCurrentUser(principal);
+
         return postService.getById(id)
                 .map(existing -> {
                     existing.setTitle(incoming.getTitle());
                     existing.setBody(incoming.getBody());
+                    existing.setModifiedAt(LocalDateTime.now());
                     Post saved = postService.save(existing);
-                    return ResponseEntity.ok(toPostSummary(saved));
+                    return ResponseEntity.ok(toPostSummary(saved, currentUser));
                 })
                 .orElse(ResponseEntity.notFound().build());
     }
@@ -319,7 +333,27 @@ public class PostController {
         Post saved = postService.save(post);
 
 
-        return ResponseEntity.ok(toPostSummary(saved));
+        return ResponseEntity.ok(toPostSummary(saved, me));
+    }
+
+    @PostMapping("/{postId}/like")
+    public ResponseEntity<LikeResponse> toggleLike(@PathVariable Long postId,
+                                                   Principal principal) {
+        if (principal == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
+
+        boolean liked = postLikesService.toggleLike(postId, account);
+        long likeCount = postLikesService.getLikeCount(postId);
+
+        LikeResponse response = new LikeResponse();
+        response.liked = liked;
+        response.likeCount = likeCount;
+
+        return ResponseEntity.ok(response);
     }
 
 
@@ -354,6 +388,12 @@ public class PostController {
     public static class CreatePostRequest {
         private String title;
         private String body;
+    }
+
+    @Data
+    public static class LikeResponse {
+        public boolean liked;
+        public long likeCount;
     }
 
 }

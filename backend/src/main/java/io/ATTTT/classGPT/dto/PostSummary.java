@@ -14,7 +14,9 @@ public record PostSummary(
         String authorFirstName,
         String authorLastName,
         LocalDateTime createdAt,
+        LocalDateTime modifiedAt,
         int replyCount,
-
-        List<ReplySummary> replies
-) {}
+        List<ReplySummary> replies,
+        int upVotes,
+        boolean currentUserLiked
+        ) {}

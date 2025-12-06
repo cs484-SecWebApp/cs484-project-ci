@@ -11,8 +11,11 @@ const PostView = ({
   onBack,
   onLLMReply,
   onFollowupSubmit,
+  onLikeUpdated,
+  onPostUpdated,
 }) => {
-  const [upvoted, setUpvoted] = useState(false);
+  const [upvoted, setUpvoted] = useState(post.currentUserLiked || false);
+  const [upvoteCount, setUpvoteCount] = useState(post.upvotes || 0);
   const [starred, setStarred] = useState(false);
   const [followupText, setFollowupText] = useState('');
   const [followupAuthor, setFollowupAuthor] = useState(post.followupAuthor || '');
@@ -24,10 +27,36 @@ const PostView = ({
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatAiReply, setChatAiReply] = useState(null);
 
+  // NEW: Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(post.title);
+  const [editContent, setEditContent] = useState(post.content);
+  const [isSaving, setIsSaving] = useState(false);
+
   const isMyPost = post.author === currentUser;
   const followups = post.followups || [];
 
-  const handleUpvote = () => setUpvoted(!upvoted);
+  const handleUpvote = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/posts/${post.id}/like`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUpvoted(data.liked);
+        setUpvoteCount(data.likeCount);
+        
+        if (onLikeUpdated) {
+          onLikeUpdated(post.id, data.liked, data.likeCount);
+        }
+      }
+    } catch (err) {
+      console.error('Error toggling like:', err);
+    }
+  };
+
   const handleStar = () => setStarred(!starred);
 
   const handleFlagReply = async (replyId) => {
@@ -51,7 +80,57 @@ const PostView = ({
   };
 
   const handleEdit = () => {
-    console.log('Edit post:', post.id);
+    setIsEditing(true);
+    setEditTitle(post.title);
+    setEditContent(post.content);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditTitle(post.title);
+    setEditContent(post.content);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTitle.trim() || !editContent.trim()) {
+      alert('Title and content cannot be empty');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/posts/${post.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          title: editTitle,
+          body: editContent,
+        }),
+      });
+
+      if (response.ok) {
+        const updatedPost = await response.json();
+        
+        // Update local state
+        setIsEditing(false);
+        
+        // Notify parent component
+        if (onPostUpdated) {
+          onPostUpdated(updatedPost);
+        }
+        
+      } else {
+        alert('Failed to update post');
+      }
+    } catch (err) {
+      console.error('Error updating post:', err);
+      alert('Error updating post');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAIAssist = async () => {
@@ -157,6 +236,10 @@ const PostView = ({
       </div>
     ));
 
+
+  const wasEdited = post.modifiedAt && post.createdAt && 
+    new Date(post.modifiedAt).getTime() !== new Date(post.createdAt).getTime();
+
   return (
     <div className="post-view">
       {/* Breadcrumb Navigation */}
@@ -164,11 +247,6 @@ const PostView = ({
         <button className="back-btn" onClick={onBack}>
           ←
         </button>
-        <button className="history-btn">
-          <span className="clock-icon">🕐</span> Question History
-        </button>
-        <span className="nav-divider">|</span>
-        <span className="no-history">No history yet</span>
       </div>
 
       {/* Post Header */}
@@ -183,189 +261,240 @@ const PostView = ({
         </div>
       </div>
 
-      {/* Post Title */}
-      <h1 className="post-title">{post.title}</h1>
-
-      {/* Post Meta */}
-      <div className="post-meta-info">
-        <span className="post-updated">
-          Updated {post.updatedAt} by {post.author}
-        </span>
-      </div>
-
-      {/* Post Content */}
-      <div
-        className="post-body"
-        dangerouslySetInnerHTML={{ __html: post.content }}
-      />
-
-      {/* Post Tags */}
-      {post.tags && post.tags.length > 0 && (
-        <div className="post-tags">
-          {post.tags.map((tag, index) => (
-            <span key={index} className="post-tag">
-              {tag}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Post Actions */}
-      <div className="post-actions">
-        {isMyPost && (
-          <button className="action-btn edit-btn" onClick={handleEdit}>
-            <span className="edit-icon">✎</span> Edit
-          </button>
-        )}
-        <button
-          className={`action-btn upvote-btn ${upvoted ? 'active' : ''}`}
-          onClick={handleUpvote}
-        >
-          <span className="thumbs-up-icon">👍</span>{' '}
-          {post.upvotes + (upvoted ? 1 : 0)}
-        </button>
-        <button
-          className={`action-btn star-btn ${starred ? 'active' : ''}`}
-          onClick={handleStar}
-        >
-          <span className="star-icon">{starred ? '★' : '☆'}</span>
-        </button>
-        <button className="action-btn bookmark-btn">
-          <span className="bookmark-icon">📖</span>
-        </button>
-        <button className="action-btn link-btn" onClick={handleCopyLink}>
-          <span className="link-icon">🔗</span>
-        </button>
-        <button
-          className={`action-btn ai-btn ${isAILoading ? 'loading' : ''}`}
-          onClick={handleAIAssist}
-          disabled={isAILoading}
-        >
-          {isAILoading ? (
-            <>
-              <span className="ai-loading-spinner"></span>
-              <span>Generating...</span>
-            </>
-          ) : (
-            <>
-              <span className="ai-icon">🤖</span> AI
-            </>
-          )}
-        </button>
-        <div className="post-views">
-          <span className="views-count">{post.views} views</span>
-        </div>
-      </div>
-
-      {/* Students' Answer Section */}
-      <div className="answer-section student-answer-section">
-        <div className="section-header">
-          <div className="section-icon student-icon">S</div>
-          <h2 className="section-title">Students' Answer</h2>
-        </div>
-        <div className="section-subtitle">
-          Where students collectively construct a single answer
-        </div>
-
-        {post.studentAnswer ? (
-          <div className="answers-list">
-            <div className="answer-item">
-              <div className="answer-content">{post.studentAnswer}</div>
+      {/* Edit Mode */}
+      {isEditing ? (
+        <div className="edit-mode">
+          <div className="edit-header">
+            <h2>Edit Post</h2>
+          </div>
+          
+          <div className="edit-form">
+            <div className="form-group">
+              <label>Title</label>
+              <input
+                type="text"
+                className="edit-title-input"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder="Post title"
+              />
             </div>
-          </div>
-        ) : (
-          <div className="empty-answer">Click to start off the wiki answer</div>
-        )}
-      </div>
-
-      {/* Instructors' Answer Section */}
-      <div className="answer-section instructor-answer-section">
-        <div className="section-header">
-          <div className="section-icon instructor-icon">I</div>
-          <h2 className="section-title">Instructors' Answer</h2>
-        </div>
-        <div className="section-subtitle">Updated by instructor</div>
-
-        {post.instructorAnswer ? (
-          <div className="answers-list">
-            <div className="answer-item">
-              <div className="answer-content">{post.instructorAnswer}</div>
+            
+            <div className="form-group">
+              <label>Content</label>
+              <textarea
+                className="edit-content-input"
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                placeholder="Post content"
+                rows={10}
+              />
             </div>
-          </div>
-        ) : (
-          <div className="empty-answer">No instructor answer yet</div>
-        )}
-      </div>
-
-      {/* AI Answer Section - Only show if there is an AI answer */}
-      {post.aiAnswer && (
-        <div className="answer-section ai-answer-section">
-          <div className="section-header">
-            <div className="section-icon ai-icon-section">🤖</div>
-            <h2 className="section-title">AI-Generated Answer</h2>
-          </div>
-          <div className="section-subtitle">
-            Generated by Gemini AI assistant
-          </div>
-
-          <div className="answers-list">
-            <div className="answer-item ai-answer">
-              <div className="answer-content">{post.aiAnswer}</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Followup Discussions Section */}
-      <div className="followup-section">
-        <div className="section-header followup-header">
-          <div className="section-icon followup-icon">💬</div>
-          <h2 className="section-title">
-            {followups.length} Followup Discussion
-            {followups.length !== 1 ? 's' : ''}
-          </h2>
-        </div>
-
-        {/* Existing Followups */}
-        {followups.length > 0 ? (
-          <div className="followups-list">{renderReplies(replyTree)}</div>
-        ) : (
-          <div className="no-followups">No followup discussions yet</div>
-        )}
-
-        {/* New Followup Input */}
-        <div className="new-followup">
-          {replyingToId && (
-            <div className="replying-to-banner">
-              Replying to <strong>{replyingToAuthor}</strong>
-              <button
-                className="cancel-reply-btn"
-                onClick={() => {
-                  setReplyingToId(null);
-                  setReplyingToAuthor(null);
-                }}
+            
+            <div className="edit-actions">
+              <button 
+                className="cancel-edit-btn" 
+                onClick={handleCancelEdit}
+                disabled={isSaving}
               >
-                ×
+                Cancel
+              </button>
+              <button 
+                className="save-edit-btn" 
+                onClick={handleSaveEdit}
+                disabled={isSaving}
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Post Title */}
+          <h1 className="post-title">{post.title}</h1>
+
+          {/* Post Meta */}
+          <div className="post-meta-info">
+            <span className="post-updated">
+              Updated {post.updatedAt} by {post.author}
+            </span>
+            {wasEdited && (
+              <span className="edited-badge">
+                <strong>• EDITED</strong>
+              </span>
+            )}
+          </div>
+
+          {/* Post Content */}
+          <div className="post-body">{post.content}</div>
+
+          {/* Post Tags */}
+          {post.tags && post.tags.length > 0 && (
+            <div className="post-tags">
+              {post.tags.map((tag, index) => (
+                <span key={index} className="post-tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
           )}
 
-          <textarea
-            className="followup-input"
-            placeholder="Compose a new followup discussion"
-            value={followupText}
-            onChange={(e) => setFollowupText(e.target.value)}
-          />
-          {followupText && (
+          {/* Post Actions */}
+          <div className="post-actions">
+            {isMyPost && (
+              <button className="action-btn edit-btn" onClick={handleEdit}>
+                <span className="edit-icon">✎</span> Edit
+              </button>
+            )}
             <button
-              className="submit-followup-btn"
-              onClick={handleFollowupSubmit}
+              className={`action-btn upvote-btn ${upvoted ? 'active' : ''}`}
+              onClick={handleUpvote}
             >
-              Post Followup
+              <span className="thumbs-up-icon">👍</span>{' '}
+              {upvoteCount}
             </button>
+            <button
+              className={`action-btn star-btn ${starred ? 'active' : ''}`}
+              onClick={handleStar}
+            >
+              <span className="star-icon">{starred ? '★' : '☆'}</span>
+            </button>
+            <button className="action-btn bookmark-btn">
+              <span className="bookmark-icon">📖</span>
+            </button>
+            <button className="action-btn link-btn" onClick={handleCopyLink}>
+              <span className="link-icon">🔗</span>
+            </button>
+            <button
+              className={`action-btn ai-btn ${isAILoading ? 'loading' : ''}`}
+              onClick={handleAIAssist}
+              disabled={isAILoading}
+            >
+              {isAILoading ? (
+                <>
+                  <span className="ai-loading-spinner"></span>
+                  <span>Generating...</span>
+                </>
+              ) : (
+                <>
+                  <span className="ai-icon">🤖</span> AI
+                </>
+              )}
+            </button>
+          </div>
+
+          {/* Students' Answer Section */}
+          <div className="answer-section student-answer-section">
+            <div className="section-header">
+              <div className="section-icon student-icon">S</div>
+              <h2 className="section-title">Students' Answer</h2>
+            </div>
+            <div className="section-subtitle">
+              Where students collectively construct a single answer
+            </div>
+
+            {post.studentAnswer ? (
+              <div className="answers-list">
+                <div className="answer-item">
+                  <div className="answer-content">{post.studentAnswer}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-answer">Click to start off the wiki answer</div>
+            )}
+          </div>
+
+          {/* Instructors' Answer Section */}
+          <div className="answer-section instructor-answer-section">
+            <div className="section-header">
+              <div className="section-icon instructor-icon">I</div>
+              <h2 className="section-title">Instructors' Answer</h2>
+            </div>
+            <div className="section-subtitle">Updated by instructor</div>
+
+            {post.instructorAnswer ? (
+              <div className="answers-list">
+                <div className="answer-item">
+                  <div className="answer-content">{post.instructorAnswer}</div>
+                </div>
+              </div>
+            ) : (
+              <div className="empty-answer">No instructor answer yet</div>
+            )}
+          </div>
+
+          {/* AI Answer Section - Only show if there is an AI answer */}
+          {post.aiAnswer && (
+            <div className="answer-section ai-answer-section">
+              <div className="section-header">
+                <div className="section-icon ai-icon-section">🤖</div>
+                <h2 className="section-title">AI-Generated Answer</h2>
+              </div>
+              <div className="section-subtitle">
+                Generated by Gemini AI assistant
+              </div>
+
+              <div className="answers-list">
+                <div className="answer-item ai-answer">
+                  <div className="answer-content">{post.aiAnswer}</div>
+                </div>
+              </div>
+            </div>
           )}
-        </div>
-      </div>
+
+          {/* Followup Discussions Section */}
+          <div className="followup-section">
+            <div className="section-header followup-header">
+              <div className="section-icon followup-icon">💬</div>
+              <h2 className="section-title">
+                {followups.length} Followup Discussion
+                {followups.length !== 1 ? 's' : ''}
+              </h2>
+            </div>
+
+            {/* Existing Followups */}
+            {followups.length > 0 ? (
+              <div className="followups-list">{renderReplies(replyTree)}</div>
+            ) : (
+              <div className="no-followups">No followup discussions yet</div>
+            )}
+
+            {/* New Followup Input */}
+            <div className="new-followup">
+              {replyingToId && (
+                <div className="replying-to-banner">
+                  Replying to <strong>{replyingToAuthor}</strong>
+                  <button
+                    className="cancel-reply-btn"
+                    onClick={() => {
+                      setReplyingToId(null);
+                      setReplyingToAuthor(null);
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+
+              <textarea
+                className="followup-input"
+                placeholder="Compose a new followup discussion"
+                value={followupText}
+                onChange={(e) => setFollowupText(e.target.value)}
+              />
+              {followupText && (
+                <button
+                  className="submit-followup-btn"
+                  onClick={handleFollowupSubmit}
+                >
+                  Post Followup
+                </button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* LLM chat widget for "Let's talk more" */}
       {isChatOpen && chatAiReply && (

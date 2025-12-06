@@ -67,6 +67,7 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/LLMReply").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/flag").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/endorse").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/posts/*/like").authenticated()
                         .anyRequest().authenticated()
                 )
 
