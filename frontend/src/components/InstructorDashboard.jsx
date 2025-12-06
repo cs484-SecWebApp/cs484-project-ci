@@ -14,11 +14,15 @@ import './WelcomeSection.css';
 const API_BASE = 'http://localhost:8080';
 
 const InstructorDashboard = ({ onLogout, userName }) => {
-const normalizePosts = (apiPosts) =>
+
+
+  const normalizePosts = (apiPosts) =>
   apiPosts.map((p) => {
-    const author = p.account
-      ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
-      : 'Unknown';
+    // Author comes from PostSummary
+    const author =
+      (p.authorFirstName || p.authorLastName)
+        ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
+        : 'Unknown';
 
     const isInstructorPost = p.account && p.account.authorities
       ? p.account.authorities.some((auth) => auth.name === 'ROLE_ADMIN')
@@ -26,35 +30,23 @@ const normalizePosts = (apiPosts) =>
 
     const created = p.createdAt ? new Date(p.createdAt) : null;
 
+    // Replies come from the DTO ReplySummary
     const followups = (p.replies || []).map((r) => {
       const isLLMReply = Boolean(r.llmGenerated);
 
       const authorName = isLLMReply
         ? 'AI Tutor'
-        : (r.author
-            ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-            : 'Unknown');
+        : (r.authorName || 'Unknown');
 
       return {
         id: r.id,
         author: authorName,
         parentReplyId: r.parentReplyId ?? null,
         isLLMReply,
-        llmGenerated: isLLMReply,
-        fromInstructor: r.fromInstructor || false,
-        endorsed: r.endorsed || false,
         time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
         content: r.body,
       };
     });
-
-    const studentReplies = followups.filter(
-      (r) => !r.fromInstructor && !r.isLLMReply
-    );
-    const instructorReplies = followups.filter(
-      (r) => r.fromInstructor && !r.isLLMReply
-    );
-    const aiReplies = followups.filter((r) => r.isLLMReply);
 
     return {
       id: p.id,
@@ -66,22 +58,21 @@ const normalizePosts = (apiPosts) =>
       time: created
         ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '',
-      updatedAt: p.modifiedAt || '',
+      // we don't have modifiedAt yet, so just re-use createdAt for now
+      updatedAt: created
+        ? created.toLocaleDateString()
+        : '',
       author,
-      isInstructorPost,
-      tag: p.tag || 'general',
-      tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
-      isPinned: p.pinned || p.isPinned || false,
+      // keep simple tag info for now
+      tag: 'general',
+      tags: ['general'],
+      isPinned: false,
       isUnread: false,
-      upvotes: p.upVotes ?? 0,
+      upvotes: 0,
       views: 0,
-
-  
-      studentReplies,
-      instructorReplies,
-      aiReplies,
-      followupDiscussions: [],  // unused for now
-
+      aiAnswer: null,
+      studentAnswer: null,
+      instructorAnswer: null,
       followups,
     };
   });

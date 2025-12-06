@@ -30,6 +30,7 @@ public class ChatController {
         String storeName = course.getFileSearchStoreName();
 
         return geminiService.answerForCourse(
+                courseId,
                 courseName,
                 storeName,
                 message,
@@ -52,6 +53,7 @@ public class ChatController {
         String storeName = course.getFileSearchStoreName();
 
         String answer = geminiService.answerForCourse(
+                courseId,
                 courseName,
                 storeName,
                 message,

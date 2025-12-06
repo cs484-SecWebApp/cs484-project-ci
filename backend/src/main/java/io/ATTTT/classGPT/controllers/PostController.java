@@ -14,6 +14,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -47,6 +49,11 @@ public class PostController {
         var course = p.getCourse();
         var author = p.getAccount();
         int replyCount = (p.getReplies() != null) ? p.getReplies().size() : 0;
+        var replies = p.getReplies() != null
+                ? p.getReplies().stream()
+                .map(this::toReplySummary)
+                .toList()
+                : List.<ReplySummary>of();
 
         return new PostSummary(
                 p.getId(),
@@ -59,7 +66,8 @@ public class PostController {
                 author != null ? author.getFirstName() : null,
                 author != null ? author.getLastName()  : null,
                 p.getCreatedAt(),
-                replyCount
+                replies.size(),
+                replies
         );
     }
 
@@ -91,7 +99,8 @@ public class PostController {
 
 
     @GetMapping("/classes/{courseId}")
-    public List<Post> getPostsForCourse(@PathVariable Long courseId, Principal principal) {
+    public List<PostSummary> getPostsForCourse(@PathVariable Long courseId,
+                                               Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
@@ -99,14 +108,20 @@ public class PostController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
 
-        return postService.getPostsForCourse(courseId);
+        List<Post> posts = postService.getPostsForCourse(courseId);
+
+        log.info("Returning {} posts for course {}", posts.size(), courseId);
+        posts.forEach(p -> log.info("  post id={} title='{}'", p.getId(), p.getTitle()));
+
+        return posts.stream()
+                .map(this::toPostSummary)
+                .toList();
     }
 
 
     @PutMapping("/{id}")
     public ResponseEntity<PostSummary> updatePost(@PathVariable Long id,
                                                   @RequestBody Post incoming) {
-
         return postService.getById(id)
                 .map(existing -> {
                     existing.setTitle(incoming.getTitle());
@@ -306,6 +321,7 @@ public class PostController {
 
         return ResponseEntity.ok(toPostSummary(saved));
     }
+
 
 
     @Data

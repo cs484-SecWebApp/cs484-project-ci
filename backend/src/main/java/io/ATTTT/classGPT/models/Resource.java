@@ -40,4 +40,10 @@ public class Resource {
     @Lob
     @Basic(fetch = FetchType.LAZY)
     private String extractedText;
+
+    @Column(name = "indexed_in_file_search")
+    private Boolean indexedInFileSearch = false;
+
+    @Column(name = "file_search_operation_name")
+    private String fileSearchOperationName;
 }

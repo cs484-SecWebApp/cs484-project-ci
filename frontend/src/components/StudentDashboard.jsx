@@ -12,56 +12,62 @@ import './WelcomeSection.css';
 const API_BASE = 'http://localhost:8080';
 
 const StudentDashboard = ({ onLogout, userName }) => {
-  const normalizePosts = (apiPosts) =>
-    apiPosts.map((p) => {
-      const author = p.account
-        ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
+const normalizePosts = (apiPosts) =>
+  apiPosts.map((p) => {
+    // Author comes from PostSummary
+    const author =
+      (p.authorFirstName || p.authorLastName)
+        ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
         : 'Unknown';
 
-      const created = p.createdAt ? new Date(p.createdAt) : null;
+    const created = p.createdAt ? new Date(p.createdAt) : null;
 
-      const followups = (p.replies || []).map((r) => {
-        const isLLMReply = Boolean(r.llmGenerated);
+  
+    const followups = (p.replies || []).map((r) => {
+      const isLLMReply = Boolean(r.llmGenerated);
 
-        const authorName = isLLMReply
-          ? 'AI Tutor'
-          : (r.author
-              ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-              : 'Unknown');
-
-        return {
-          id: r.id,
-          author: authorName,
-          parentReplyId: r.parentReplyId ?? null,
-          isLLMReply,
-          time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
-          content: r.body,
-        };
-      });
+      const authorName = isLLMReply
+        ? 'AI Tutor'
+        : (r.authorName || 'Unknown');
 
       return {
-        id: p.id,
-        number: p.id,
-        type: 'question',
-        title: p.title,
-        preview: p.body ? p.body.slice(0, 120) : '',
-        content: p.body,
-        time: created
-          ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '',
-        updatedAt: p.modifiedAt || '',
-        author,
-        tag: p.tag || 'general',
-        tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
-        isPinned: p.pinned || p.isPinned || false,
-        isUnread: false,
-        upvotes: p.upVotes ?? 0,
-        views: 0,
-        LLMGeneratedAnswer: p.LLMGeneratedAnswerText,
-        studentAnswer: p.studentAnswerText,
-        followups,
+        id: r.id,
+        author: authorName,
+        parentReplyId: r.parentReplyId ?? null,
+        isLLMReply,
+        time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
+        content: r.body,
       };
     });
+
+    return {
+      id: p.id,
+      number: p.id,
+      type: 'question',
+      title: p.title,
+      preview: p.body ? p.body.slice(0, 120) : '',
+      content: p.body,
+      time: created
+        ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '',
+
+      updatedAt: created
+        ? created.toLocaleDateString()
+        : '',
+      author,
+      tag: 'general',
+      tags: ['general'],
+      isPinned: false,
+      isUnread: false,
+      upvotes: 0,
+      views: 0,
+      aiAnswer: null,
+      studentAnswer: null,
+      instructorAnswer: null,
+      followups,
+    };
+  });
+
 
   // ----- classes -----
   const [courses, setCourses] = useState([]);
@@ -98,6 +104,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
 
       const list = res.data || [];
       setCourses(list);
+
 
       if (list.length > 0 && !activeCourse) {
         setActiveCourse(list[0]);       // pick first enrolled course
