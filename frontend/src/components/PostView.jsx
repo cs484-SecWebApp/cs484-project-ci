@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import './PostView.css';
 import ChatWidget from './ChatWidget';
 
@@ -11,11 +12,12 @@ const PostView = ({
   onLLMReply,
   onFollowupSubmit,
   onFlagAIResponse,
+  onStudentAnswerSubmit,
+  onRefreshPost,
 }) => {
   const [upvoted, setUpvoted] = useState(false);
   const [starred, setStarred] = useState(false);
   const [followupText, setFollowupText] = useState('');
-  const [followupAuthor, setFollowupAuthor] = useState(post.followupAuthor || '');
   const [isAILoading, setIsAILoading] = useState(false);
 
   const [replyingToId, setReplyingToId] = useState(null);
@@ -23,6 +25,11 @@ const PostView = ({
 
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatAiReply, setChatAiReply] = useState(null);
+
+  // Student Answer editing state
+  const [isEditingStudentAnswer, setIsEditingStudentAnswer] = useState(false);
+  const [studentAnswerText, setStudentAnswerText] = useState(post.studentAnswer || '');
+  const [isSubmittingStudentAnswer, setIsSubmittingStudentAnswer] = useState(false);
 
   const isMyPost = post.author === currentUser;
   const followups = post.followups || [];
@@ -65,7 +72,6 @@ const PostView = ({
     setIsAILoading(true);
     try {
       await onLLMReply(post.id, followupText);
-      setFollowupAuthor('🤖');
       setFollowupText('');
     } catch (err) {
       console.error(err);
@@ -78,13 +84,50 @@ const PostView = ({
     if (!followupText.trim()) return;
     try {
       await onFollowupSubmit(post.id, followupText, replyingToId);
-      setFollowupAuthor(currentUser);
       setFollowupText('');
       setReplyingToId(null);
       setReplyingToAuthor(null);
     } catch (err) {
       console.error(err);
     }
+  };
+
+  // Student Answer Handlers
+  const handleStudentAnswerClick = () => {
+    setStudentAnswerText(post.studentAnswer || '');
+    setIsEditingStudentAnswer(true);
+  };
+
+  const handleStudentAnswerSubmit = async () => {
+    if (!studentAnswerText.trim()) {
+      alert('Please enter an answer');
+      return;
+    }
+
+    setIsSubmittingStudentAnswer(true);
+    try {
+      await axios.post(
+        `${API_BASE}/api/posts/${post.id}/student-answer`,
+        { body: studentAnswerText },
+        { withCredentials: true }
+      );
+      
+      setIsEditingStudentAnswer(false);
+      // Refresh the post to show updated answer
+      if (onRefreshPost) {
+        onRefreshPost();
+      }
+    } catch (err) {
+      console.error('Error submitting student answer:', err);
+      alert('Failed to submit answer');
+    } finally {
+      setIsSubmittingStudentAnswer(false);
+    }
+  };
+
+  const handleCancelStudentAnswer = () => {
+    setIsEditingStudentAnswer(false);
+    setStudentAnswerText(post.studentAnswer || '');
   };
 
   const buildReplyingTo = (replies) => {
@@ -111,16 +154,19 @@ const PostView = ({
 
   // Determine the display type for a reply
   const getReplyDisplayType = (followup) => {
+    // Check if this was originally an AI response (use both flags for safety)
+    const isAIResponse = followup.isLLMReply || followup.llmGenerated;
+    
     if (followup.replacedByInstructor) {
-      return 'instructor'; // Completely replaced by instructor
+      return 'instructor'; // Completely replaced by instructor - no longer AI
     }
-    if (followup.isLLMReply && followup.instructorEdited) {
+    if (isAIResponse && followup.instructorEdited) {
       return 'instructor-ai'; // AI edited by instructor
     }
-    if (followup.isLLMReply && followup.endorsed && !followup.instructorEdited) {
+    if (isAIResponse && followup.endorsed && !followup.instructorEdited) {
       return 'ai-endorsed'; // AI endorsed but not edited
     }
-    if (followup.isLLMReply) {
+    if (isAIResponse) {
       return 'ai'; // Regular AI response
     }
     if (followup.fromInstructor) {
@@ -132,6 +178,19 @@ const PostView = ({
   const renderReplies = (nodes, depth = 0) =>
     nodes.map((followup) => {
       const displayType = getReplyDisplayType(followup);
+      
+      // Debug log to help troubleshoot
+      if (followup.instructorEdited || followup.endorsed) {
+        console.log('Reply display:', {
+          id: followup.id,
+          isLLMReply: followup.isLLMReply,
+          llmGenerated: followup.llmGenerated,
+          instructorEdited: followup.instructorEdited,
+          replacedByInstructor: followup.replacedByInstructor,
+          endorsed: followup.endorsed,
+          displayType
+        });
+      }
       
       return (
       <div
@@ -340,19 +399,72 @@ const PostView = ({
         <div className="section-header">
           <div className="section-icon student-icon">S</div>
           <h2 className="section-title">Students' Answer</h2>
+          {post.studentAnswerEndorsed && (
+            <span className="endorsed-badge section-badge">✓ INSTRUCTOR ENDORSED</span>
+          )}
         </div>
         <div className="section-subtitle">
           Where students collectively construct a single answer
         </div>
 
-        {post.studentAnswer ? (
+        {isEditingStudentAnswer ? (
+          <div className="student-answer-editor">
+            <textarea
+              className="student-answer-textarea"
+              value={studentAnswerText}
+              onChange={(e) => setStudentAnswerText(e.target.value)}
+              placeholder="Write your answer here... You can collaborate with other students to build the best answer."
+              rows={6}
+            />
+            <div className="student-answer-actions">
+              <button 
+                className="cancel-btn"
+                onClick={handleCancelStudentAnswer}
+                disabled={isSubmittingStudentAnswer}
+              >
+                Cancel
+              </button>
+              <button 
+                className="submit-btn"
+                onClick={handleStudentAnswerSubmit}
+                disabled={isSubmittingStudentAnswer}
+              >
+                {isSubmittingStudentAnswer ? 'Submitting...' : 'Submit Answer'}
+              </button>
+            </div>
+          </div>
+        ) : post.studentAnswer ? (
           <div className="answers-list">
-            <div className="answer-item">
+            <div className={`answer-item ${post.studentAnswerEndorsed ? 'endorsed-answer' : ''}`}>
+              {post.studentAnswerEndorsed && (
+                <div className="endorsement-message">
+                  ✓ This answer has been endorsed by your instructor
+                </div>
+              )}
               <div className="answer-content">{post.studentAnswer}</div>
+              <div className="answer-meta">
+                {post.studentAnswerAuthor && (
+                  <span className="answer-author">Last edited by {post.studentAnswerAuthor}</span>
+                )}
+                {post.studentAnswerUpdatedAt && (
+                  <span className="answer-time">{post.studentAnswerUpdatedAt}</span>
+                )}
+              </div>
+              <button 
+                className="edit-answer-btn"
+                onClick={handleStudentAnswerClick}
+              >
+                ✏️ Edit Answer
+              </button>
             </div>
           </div>
         ) : (
-          <div className="empty-answer">Click to start off the wiki answer</div>
+          <div 
+            className="empty-answer clickable"
+            onClick={handleStudentAnswerClick}
+          >
+            Click to start off the wiki answer
+          </div>
         )}
       </div>
 

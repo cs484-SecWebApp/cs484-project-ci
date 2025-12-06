@@ -82,7 +82,6 @@ const normalizePosts = (apiPosts) =>
       time: created
         ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '',
-
       updatedAt: created
         ? created.toLocaleDateString()
         : '',
@@ -97,7 +96,14 @@ const normalizePosts = (apiPosts) =>
       currentUserLiked: p.currentUserLiked || false, 
       views: 0,
       aiAnswer: null,
-      studentAnswer: null,
+      // Student Answer (wiki-style) fields from API
+      studentAnswer: p.studentAnswer || null,
+      studentAnswerEndorsed: p.studentAnswerEndorsed || false,
+      studentAnswerAuthor: p.studentAnswerAuthorName || null,
+      studentAnswerUpdatedAt: p.studentAnswerUpdatedAt 
+        ? new Date(p.studentAnswerUpdatedAt).toLocaleString() 
+        : null,
+      studentAnswerEndorsedBy: p.studentAnswerEndorsedByName || null,
       instructorAnswer: null,
       followups,
     };
@@ -888,6 +894,24 @@ const normalizePosts = (apiPosts) =>
                   onFlagAIResponse={openFlagModal}
                   onLikeUpdated={handleLikeUpdated}
                   onPostUpdated={handlePostUpdated}
+                  onRefreshPost={async () => {
+                    // Refresh posts to get updated student answer
+                    try {
+                      const response = await axios.get(
+                        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
+                        { withCredentials: true }
+                      );
+                      const normalizedPosts = normalizePosts(response.data);
+                      setPosts(normalizedPosts);
+                      // Update selected post with fresh data
+                      const updatedPost = normalizedPosts.find(p => p.id === selectedPost.id);
+                      if (updatedPost) {
+                        setSelectedPost(updatedPost);
+                      }
+                    } catch (err) {
+                      console.error('Error refreshing posts:', err);
+                    }
+                  }}
                 />
               ) : (
                 /* Fallback - show welcome if nothing else matches */

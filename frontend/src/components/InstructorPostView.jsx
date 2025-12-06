@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import './InstructorPostView.css';
+
+const API_BASE = 'http://localhost:8080';
 
 const InstructorPostView = ({
   posts = [],
@@ -12,7 +15,9 @@ const InstructorPostView = ({
   selectedFilter,     // unused for now
   onInstructorReply,  // EXPECTS: (postId, text, parentReplyId?)
   onEndorseReply,
+  onEndorseStudentAnswer,
   onBack,
+  onRefreshPost,
 }) => {
   const [upvoted, setUpvoted] = useState(false);
   const [starred, setStarred] = useState(false);
@@ -21,6 +26,9 @@ const InstructorPostView = ({
 
   const [replyingToId, setReplyingToId] = useState(null);
   const [replyingToAuthor, setReplyingToAuthor] = useState(null);
+  
+  // Student answer endorsement state
+  const [isEndorsingStudentAnswer, setIsEndorsingStudentAnswer] = useState(false);
 
 
   const allPosts = [...pinnedPosts, ...posts].filter(Boolean);
@@ -92,6 +100,28 @@ const InstructorPostView = ({
     onEndorseReply(post.id, replyId);
   };
 
+  // Handle endorsing the student wiki answer
+  const handleEndorseStudentAnswer = async () => {
+    setIsEndorsingStudentAnswer(true);
+    try {
+      await axios.put(
+        `${API_BASE}/api/posts/${post.id}/student-answer/endorse`,
+        {},
+        { withCredentials: true }
+      );
+      
+      // Refresh the post to show updated endorsement
+      if (onRefreshPost) {
+        onRefreshPost();
+      }
+    } catch (err) {
+      console.error('Error endorsing student answer:', err);
+      alert('Failed to endorse student answer');
+    } finally {
+      setIsEndorsingStudentAnswer(false);
+    }
+  };
+
   // ===== Build reply tree from post.followups (similar to PostView) =====
   const followups = post.followups || []; // normalized in InstructorDashboard
 
@@ -142,6 +172,20 @@ const InstructorPostView = ({
   const renderReplies = (nodes, depth = 0) =>
     nodes.map((followup) => {
       const displayType = getReplyDisplayType(followup);
+      
+      // Debug log to help troubleshoot display issues
+      if (followup.instructorEdited || followup.endorsed || followup.replacedByInstructor) {
+        console.log('InstructorPostView - Reply display:', {
+          id: followup.id,
+          isLLMReply: followup.isLLMReply,
+          llmGenerated: followup.llmGenerated,
+          instructorEdited: followup.instructorEdited,
+          replacedByInstructor: followup.replacedByInstructor,
+          endorsed: followup.endorsed,
+          fromInstructor: followup.fromInstructor,
+          displayType
+        });
+      }
       
       return (
       <div
@@ -320,41 +364,47 @@ const InstructorPostView = ({
         <div className="section-header">
           <div className="section-icon student-icon">S</div>
           <h2 className="section-title">Students' Answer</h2>
+          {post.studentAnswerEndorsed && (
+            <span className="endorsed-badge section-badge">✓ ENDORSED</span>
+          )}
         </div>
         <div className="section-subtitle">
           Where students collectively construct a single answer
         </div>
 
-        {post.studentReplies && post.studentReplies.length > 0 ? (
+        {post.studentAnswer ? (
           <div className="answers-list">
-            {post.studentReplies.map((reply, index) => (
-              <div key={reply.id || index} className="answer-item">
-                <div className="answer-meta">
-                  <span className="answer-author">{reply.author}</span>
-                  <span className="answer-time">{reply.time}</span>
+            <div className={`answer-item ${post.studentAnswerEndorsed ? 'endorsed-answer' : ''}`}>
+              {post.studentAnswerEndorsed && (
+                <div className="endorsement-message">
+                  ✓ You have endorsed this student answer
                 </div>
-                <div className="answer-content">{reply.content}</div>
+              )}
+              <div className="answer-content">{post.studentAnswer}</div>
+              <div className="answer-meta">
+                {post.studentAnswerAuthor && (
+                  <span className="answer-author">Last edited by {post.studentAnswerAuthor}</span>
+                )}
+                {post.studentAnswerUpdatedAt && (
+                  <span className="answer-time">{post.studentAnswerUpdatedAt}</span>
+                )}
+              </div>
+              {!post.studentAnswerEndorsed && (
                 <div className="answer-actions">
                   <button
-                    className={`endorse-btn ${
-                      reply.endorsed ? 'endorsed' : ''
-                    }`}
-                    onClick={() => handleEndorseClick(reply.id)}
+                    className="endorse-btn"
+                    onClick={handleEndorseStudentAnswer}
+                    disabled={isEndorsingStudentAnswer}
                   >
-                    {reply.endorsed
-                      ? '✓ Endorsed by Instructor'
-                      : 'Endorse'}
+                    {isEndorsingStudentAnswer ? 'Endorsing...' : '✓ Endorse Answer'}
                   </button>
                 </div>
-              </div>
-            ))}
+              )}
+            </div>
           </div>
         ) : (
           <div className="empty-answer">
-            <textarea
-              className="answer-input"
-              placeholder="Click to start off the wiki answer"
-            />
+            No student answer yet
           </div>
         )}
       </div>

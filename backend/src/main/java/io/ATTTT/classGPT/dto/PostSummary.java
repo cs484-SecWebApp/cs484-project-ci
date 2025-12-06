@@ -18,5 +18,11 @@ public record PostSummary(
         int replyCount,
         List<ReplySummary> replies,
         int upVotes,
-        boolean currentUserLiked
-        ) {}
+        boolean currentUserLiked,
+        // Student Answer fields
+        String studentAnswer,
+        boolean studentAnswerEndorsed,
+        String studentAnswerAuthorName,
+        LocalDateTime studentAnswerUpdatedAt,
+        String studentAnswerEndorsedByName
+) {}

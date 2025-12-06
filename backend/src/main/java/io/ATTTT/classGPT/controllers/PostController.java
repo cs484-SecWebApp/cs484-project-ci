@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -62,6 +63,20 @@ public class PostController {
         boolean currentUserLiked = currentUser != null &&
                 postLikesService.hasUserLiked(p.getId(), currentUser.getId());
 
+        // Get student answer author name
+        String studentAnswerAuthorName = null;
+        if (p.getStudentAnswerAuthor() != null) {
+            var sa = p.getStudentAnswerAuthor();
+            studentAnswerAuthorName = (sa.getFirstName() + " " + sa.getLastName()).trim();
+        }
+
+        // Get endorser name
+        String studentAnswerEndorsedByName = null;
+        if (p.getStudentAnswerEndorsedBy() != null) {
+            var endorser = p.getStudentAnswerEndorsedBy();
+            studentAnswerEndorsedByName = (endorser.getFirstName() + " " + endorser.getLastName()).trim();
+        }
+
         return new PostSummary(
                 p.getId(),
                 p.getTitle(),
@@ -77,7 +92,13 @@ public class PostController {
                 replies.size(),
                 replies,
                 p.getUpVotes(),
-                currentUserLiked
+                currentUserLiked,
+                // Student Answer fields
+                p.getStudentAnswer(),
+                p.isStudentAnswerEndorsed(),
+                studentAnswerAuthorName,
+                p.getStudentAnswerUpdatedAt(),
+                studentAnswerEndorsedByName
         );
     }
 
@@ -469,6 +490,13 @@ public class PostController {
         reply.setEditedAt(LocalDateTime.now());
         reply.setEditedBy(account);
         
+        // IMPORTANT: Ensure this is NOT marked as replaced - it's still an AI response
+        reply.setReplacedByInstructor(false);
+        reply.setFromInstructor(false);  // Keep as AI response, not instructor
+        
+        // Explicitly keep llmGenerated as TRUE
+        reply.setLlmGenerated(true);
+        
         // Mark as reviewed and endorsed
         reply.setReviewed(true);
         reply.setReviewedAt(LocalDateTime.now());
@@ -490,11 +518,10 @@ public class PostController {
 
         Replies saved = repliesRepository.save(reply);
         
-        // Learning via GeminiService RAG:
-        // This edited response will be included in future similar questions
-        // The instructor edit is stored and the response is now endorsed
-        log.info("AI response {} edited by instructor {}. Will be prioritized in future RAG context.", 
-                replyId, account.getEmail());
+        // Debug logging to verify correct state
+        log.info("AI response {} edited by instructor {}. State: llmGenerated={}, instructorEdited={}, replacedByInstructor={}, fromInstructor={}", 
+                replyId, account.getEmail(), saved.isLlmGenerated(), saved.isInstructorEdited(), 
+                saved.isReplacedByInstructor(), saved.isFromInstructor());
 
         return ResponseEntity.ok(toReplySummary(saved));
     }
@@ -761,6 +788,125 @@ public class PostController {
         public int totalAIReplies;
         public int totalEndorsements;
         public List<AIGenerationInfo> aiGenerations;
+    }
+
+    // ============================================
+    // STUDENT ANSWER ENDPOINTS
+    // ============================================
+
+    /**
+     * Submit or update the wiki-style student answer for a post
+     */
+    @PostMapping("/{postId}/student-answer")
+    public ResponseEntity<?> submitStudentAnswer(
+            @PathVariable Long postId,
+            @RequestBody StudentAnswerRequest request,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        Post post = postService.getById(postId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+
+        // Update the wiki-style student answer
+        post.setStudentAnswer(request.getBody());
+        post.setStudentAnswerAuthor(account);
+        post.setStudentAnswerUpdatedAt(LocalDateTime.now());
+        
+        // If answer is edited, clear endorsement (instructor needs to re-endorse)
+        if (post.isStudentAnswerEndorsed()) {
+            post.setStudentAnswerEndorsed(false);
+            post.setStudentAnswerEndorsedBy(null);
+            post.setStudentAnswerEndorsedAt(null);
+        }
+
+        postService.save(post);
+
+        log.info("Student {} submitted wiki answer for post {}", account.getEmail(), postId);
+
+        return ResponseEntity.ok().body(Map.of(
+            "message", "Student answer submitted successfully",
+            "studentAnswer", post.getStudentAnswer(),
+            "authorName", account.getFirstName() + " " + account.getLastName()
+        ));
+    }
+
+    /**
+     * Instructor endorses the student wiki answer
+     */
+    @PutMapping("/{postId}/student-answer/endorse")
+    public ResponseEntity<?> endorseStudentAnswer(
+            @PathVariable Long postId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor role
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only instructors can endorse student answers");
+        }
+
+        Post post = postService.getById(postId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+
+        if (post.getStudentAnswer() == null || post.getStudentAnswer().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No student answer to endorse");
+        }
+
+        // Endorse the student answer
+        post.setStudentAnswerEndorsed(true);
+        post.setStudentAnswerEndorsedBy(account);
+        post.setStudentAnswerEndorsedAt(LocalDateTime.now());
+
+        postService.save(post);
+
+        log.info("Instructor {} endorsed student answer for post {}", account.getEmail(), postId);
+
+        return ResponseEntity.ok().body(Map.of(
+            "message", "Student answer endorsed successfully",
+            "endorsedBy", account.getFirstName() + " " + account.getLastName()
+        ));
+    }
+
+    /**
+     * Remove endorsement from student answer
+     */
+    @DeleteMapping("/{postId}/student-answer/endorse")
+    public ResponseEntity<?> removeStudentAnswerEndorsement(
+            @PathVariable Long postId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor role
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only instructors can modify endorsements");
+        }
+
+        Post post = postService.getById(postId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Post not found"));
+
+        post.setStudentAnswerEndorsed(false);
+        post.setStudentAnswerEndorsedBy(null);
+        post.setStudentAnswerEndorsedAt(null);
+
+        postService.save(post);
+
+        log.info("Instructor {} removed endorsement from student answer for post {}", account.getEmail(), postId);
+
+        return ResponseEntity.ok().body(Map.of("message", "Endorsement removed"));
+    }
+
+    // ============================================
+    // REQUEST/RESPONSE CLASSES
+    // ============================================
+
+    @Data
+    public static class StudentAnswerRequest {
+        private String body;
     }
 
     @Data

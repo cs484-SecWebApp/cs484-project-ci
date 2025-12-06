@@ -17,26 +17,43 @@ import './LLMNotifications.css';
 const API_BASE = 'http://localhost:8080';
 
 const InstructorDashboard = ({ onLogout, userName }) => {
-
-
-  const normalizePosts = (apiPosts) =>
+const normalizePosts = (apiPosts) =>
   apiPosts.map((p) => {
-    // Author comes from PostSummary
-    const author =
-      (p.authorFirstName || p.authorLastName)
-        ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
-        : 'Unknown';
+    const author = p.account
+      ? `${p.account.firstName || ''} ${p.account.lastName || ''}`.trim()
+      : 'Unknown';
 
     const isInstructorPost = p.account && p.account.authorities
       ? p.account.authorities.some((auth) => auth.name === 'ROLE_ADMIN')
       : false;
 
     const created = p.createdAt ? new Date(p.createdAt) : null;
-    const modified = p.modifiedAt ? new Date(p.modifiedAt) : null;
 
-    // Replies come from the DTO ReplySummary
     const followups = (p.replies || []).map((r) => {
       const isLLMReply = Boolean(r.llmGenerated);
+
+      // Debug: log raw reply data for AI/edited responses
+      if (r.instructorEdited || r.endorsed || r.llmGenerated || r.replacedByInstructor) {
+        console.log('=== REPLY NORMALIZATION DEBUG ===');
+        console.log('Reply ID:', r.id);
+        console.log('Raw API data:', {
+          llmGenerated: r.llmGenerated,
+          instructorEdited: r.instructorEdited,
+          replacedByInstructor: r.replacedByInstructor,
+          fromInstructor: r.fromInstructor,
+          endorsed: r.endorsed,
+          editedByName: r.editedByName
+        });
+        
+        // Determine expected display type
+        let expectedType;
+        if (r.replacedByInstructor) expectedType = 'instructor (yellow)';
+        else if (r.llmGenerated && r.instructorEdited) expectedType = 'instructor-ai (purple)';
+        else if (r.llmGenerated && r.endorsed) expectedType = 'ai-endorsed (green)';
+        else if (r.llmGenerated) expectedType = 'ai (blue)';
+        else expectedType = 'student/instructor';
+        console.log('Expected display type:', expectedType);
+      }
 
       // Determine author name based on reply state
       let authorName;
@@ -83,6 +100,14 @@ const InstructorDashboard = ({ onLogout, userName }) => {
       };
     });
 
+    const studentReplies = followups.filter(
+      (r) => !r.fromInstructor && !r.isLLMReply
+    );
+    const instructorReplies = followups.filter(
+      (r) => r.fromInstructor && !r.isLLMReply
+    );
+    const aiReplies = followups.filter((r) => r.isLLMReply);
+
     return {
       id: p.id,
       number: p.id,
@@ -93,24 +118,30 @@ const InstructorDashboard = ({ onLogout, userName }) => {
       time: created
         ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : '',
-      // we don't have modifiedAt yet, so just re-use createdAt for now
-      updatedAt: created
-        ? created.toLocaleDateString()
-        : '',
-      createdAt: p.createdAt,
-      modifiedAt: p.modifiedAt,
+      updatedAt: p.modifiedAt || '',
       author,
-      // keep simple tag info for now
-      tag: 'general',
-      tags: ['general'],
-      isPinned: false,
+      isInstructorPost,
+      tag: p.tag || 'general',
+      tags: p.tags && p.tags.length ? p.tags : [p.tag || 'general'],
+      isPinned: p.pinned || p.isPinned || false,
       isUnread: false,
-      upvotes: p.upVotes || 0,
-      currentUserLiked: p.currentUserLiked || false,
+      upvotes: p.upVotes ?? 0,
       views: 0,
-      aiAnswer: null,
-      studentAnswer: null,
-      instructorAnswer: null,
+
+      // Student Answer (wiki-style) fields from API
+      studentAnswer: p.studentAnswer || null,
+      studentAnswerEndorsed: p.studentAnswerEndorsed || false,
+      studentAnswerAuthor: p.studentAnswerAuthorName || null,
+      studentAnswerUpdatedAt: p.studentAnswerUpdatedAt 
+        ? new Date(p.studentAnswerUpdatedAt).toLocaleString() 
+        : null,
+      studentAnswerEndorsedBy: p.studentAnswerEndorsedByName || null,
+
+      studentReplies,
+      instructorReplies,
+      aiReplies,
+      followupDiscussions: [],  // unused for now
+
       followups,
     };
   });
@@ -304,54 +335,6 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     }
   };
 
-  const handleLikePost = async (postId) => {
-    try {
-      const response = await axios.post(
-        `http://localhost:8080/api/posts/${postId}/like`,
-        {},
-        { withCredentials: true }
-      );
-
-      const { liked, likeCount } = response.data;
-
-      setPosts(prevPosts =>
-        prevPosts.map(p =>
-          p.id === postId
-            ? { ...p, currentUserLiked: liked, upvotes: likeCount }
-            : p
-        )
-      );
-
-
-      if (selectedPost && selectedPost.id === postId) {
-        setSelectedPost(prev => ({
-          ...prev,
-          currentUserLiked: liked,
-          upvotes: likeCount,
-        }));
-      }
-    } catch (err) {
-      console.error('Error liking post:', err);
-      setError('Error updating like');
-    }
-  };
-
-  const handlePostUpdated = (updatedPostData) => {
-    const normalizedPost = normalizePosts([updatedPostData])[0];
-    
-    // Update posts array
-    setPosts(prevPosts =>
-      prevPosts.map(p =>
-        p.id === normalizedPost.id ? normalizedPost : p
-      )
-    );
-    
-    // Update selected post
-    if (selectedPost && selectedPost.id === normalizedPost.id) {
-      setSelectedPost(normalizedPost);
-    }
-  };
-
   const handleNewPostSubmit = async (title, body) => {
     if (!activeCourse) return; 
 
@@ -373,7 +356,7 @@ const InstructorDashboard = ({ onLogout, userName }) => {
     }
   };
 
-
+  // Sample statistics (still fake)
   const stats = {
     allCaughtUp: true,
     unreadPosts: 0,
@@ -522,34 +505,12 @@ const handleCreateCourseSubmit = async (e) => {
 };
 
 
-  // ===== SEARCH FILTER LOGIC =====
-  const filterPosts = (postsToFilter) => {
-    if (!searchQuery.trim()) return postsToFilter;
-    
-    const query = searchQuery.toLowerCase();
-    return postsToFilter.filter(post => {
-      // Search in title
-      if (post.title && post.title.toLowerCase().includes(query)) return true;
-      
-      // Search in content/body
-      if (post.content && post.content.toLowerCase().includes(query)) return true;
-      
-      // Search in author name
-      if (post.author && post.author.toLowerCase().includes(query)) return true;
-      
-      // Search in tags
-      if (post.tags && post.tags.some(tag => tag.toLowerCase().includes(query))) return true;
-      
-      return false;
-    });
-  };
-
   const filteredPosts =
     selectedFilter === 'all'
-      ? filterPosts(posts)
-      : filterPosts(posts.filter((post) => post.tags && post.tags.includes(selectedFilter)));
+      ? posts
+      : posts.filter((post) => post.tags && post.tags.includes(selectedFilter));
 
-  const pinnedPosts = filteredPosts.filter((post) => post.isPinned);
+  const pinnedPosts = posts.filter((post) => post.isPinned);
   const regularPosts = filteredPosts.filter((post) => !post.isPinned);
 
   const effectiveSelectedPost =
@@ -705,40 +666,7 @@ const handleCreateCourseSubmit = async (e) => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                  {searchQuery && (
-                    <button 
-                      className="clear-search-btn"
-                      onClick={() => setSearchQuery('')}
-                      style={{
-                        position: 'absolute',
-                        right: '8px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '18px',
-                        color: '#999',
-                        padding: '4px'
-                      }}
-                    >
-                      ×
-                    </button>
-                  )}
                 </div>
-
-                {searchQuery && (
-                  <div style={{ 
-                    padding: '8px 16px', 
-                    fontSize: '12px', 
-                    color: '#666',
-                    background: '#f5f5f5',
-                    borderRadius: '4px',
-                    margin: '0 16px 8px'
-                  }}>
-                    Found {pinnedPosts.length + regularPosts.length} result{pinnedPosts.length + regularPosts.length !== 1 ? 's' : ''} for "{searchQuery}"
-                  </div>
-                )}
 
                 <div className="posts-section">
                   <div className="posts-header">
@@ -748,66 +676,41 @@ const handleCreateCourseSubmit = async (e) => {
                     <button className="menu-icon">⋮</button>
                   </div>
 
-                  {pinnedPosts.length > 0 && (
-                    <div className="pinned-section">
-                      <div className="section-header">
-                        <span className="dropdown-icon">▼</span>
-                        <span>Pinned</span>
-                      </div>
-                      {pinnedPosts.map((post) => (
-                        <div
-                          key={post.id}
-                          className="pinned-post"
-                          onClick={() => handlePostClick(post.id)}
-                        >
-                          <span className="pin-icon">📌</span>
-                          <div className="post-info">
-                            <div className="post-title">{post.title}</div>
-                            {post.preview && (
-                              <div className="post-preview">{post.preview}</div>
-                            )}
-                          </div>
-                          <div className="post-date">{post.time}</div>
-                        </div>
-                      ))}
+                  <div className="pinned-section">
+                    <div className="section-header">
+                      <span className="dropdown-icon">▼</span>
+                      <span>Pinned</span>
                     </div>
-                  )}
+                    {pinnedPosts.map((post) => (
+                      <div
+                        key={post.id}
+                        className="pinned-post"
+                        onClick={() => handlePostClick(post.id)}
+                      >
+                        <span className="pin-icon">📌</span>
+                        <div className="post-info">
+                          <div className="post-title">{post.title}</div>
+                          {post.preview && (
+                            <div className="post-preview">{post.preview}</div>
+                          )}
+                        </div>
+                        <div className="post-date">{post.time}</div>
+                      </div>
+                    ))}
+                  </div>
 
                   <div className="posts-list">
                     <div className="section-header">
                       <span className="dropdown-icon">▼</span>
-                      <span>{searchQuery ? 'Search Results' : 'Today'}</span>
+                      <span>Today</span>
                     </div>
                     {regularPosts.length === 0 && pinnedPosts.length === 0 ? (
                       <div className="posts-list-empty">
                         <div className="empty-icon">📝</div>
-                        <div>
-                          {searchQuery 
-                            ? `No posts found matching "${searchQuery}"` 
-                            : 'No posts yet in this class.'}
+                        <div>No posts yet in this class.</div>
+                        <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
+                          Click "New Post" to start a discussion!
                         </div>
-                        {!searchQuery && (
-                          <div style={{ marginTop: '8px', fontSize: '12px', color: '#aaa' }}>
-                            Click "New Post" to start a discussion!
-                          </div>
-                        )}
-                        {searchQuery && (
-                          <button 
-                            onClick={() => setSearchQuery('')}
-                            style={{
-                              marginTop: '12px',
-                              padding: '6px 12px',
-                              background: '#3b82f6',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            Clear Search
-                          </button>
-                        )}
                       </div>
                     ) : (
                       regularPosts.map((post) => (
@@ -996,8 +899,28 @@ const handleCreateCourseSubmit = async (e) => {
                   onLLMReply={handleLLMReply}
                   onInstructorReply={handleInstructorReply}
                   onEndorseReply={handleEndorseReply}
-                  onLikePost={handleLikePost}
-                  onPostUpdated={handlePostUpdated}
+                  onBack={() => setSelectedPost(null)}
+                  onRefreshPost={async () => {
+                    // Refresh posts to get updated student answer
+                    try {
+                      const response = await axios.get(
+                        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
+                        { withCredentials: true }
+                      );
+                      const normalizedPosts = normalizePosts(response.data);
+                      setPosts(normalizedPosts);
+                      // Update selected post with fresh data
+                      const currentPostId = selectedPost?.id || regularPosts[0]?.id;
+                      if (currentPostId) {
+                        const updatedPost = normalizedPosts.find(p => p.id === currentPostId);
+                        if (updatedPost) {
+                          setSelectedPost(updatedPost);
+                        }
+                      }
+                    } catch (err) {
+                      console.error('Error refreshing posts:', err);
+                    }
+                  }}
                 />
               )}
             </main>
