@@ -14,6 +14,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -81,6 +82,7 @@ public class PostController {
 
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<PostSummary> getAllPosts() {
         return postService.getAll()
                 .stream()
@@ -91,6 +93,7 @@ public class PostController {
 
 
     @GetMapping("/classes/{courseId}")
+    @PreAuthorize("isAuthenticated()")
     public List<Post> getPostsForCourse(@PathVariable Long courseId, Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
@@ -104,6 +107,7 @@ public class PostController {
 
 
     @PutMapping("/{id}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PostSummary> updatePost(@PathVariable Long id,
                                                   @RequestBody Post incoming) {
 
@@ -119,7 +123,7 @@ public class PostController {
 
 
     @DeleteMapping("/{id}")
-//    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Object> deletePost(@PathVariable Long id) {
         return postService.getById(id)
                 .map(post -> {
@@ -131,6 +135,7 @@ public class PostController {
 
 
     @PostMapping("/{id}/replies")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ReplySummary> addReply(@PathVariable Long id,
                                                  @RequestBody CreateFollowupRequest req,
                                                  Principal principal) {
@@ -163,6 +168,7 @@ public class PostController {
 
 
     @PostMapping("/{id}/LLMReply")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ReplySummary> addLLMReply(@PathVariable Long id,
                                                     Principal principal) {
         Post post = postService.getById(id)
@@ -182,6 +188,7 @@ public class PostController {
 
 
     @PutMapping("/{postId}/replies/{replyId}/endorse")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ReplySummary> endorseReply(@PathVariable Long postId,
                                                      @PathVariable Long replyId,
                                                      Principal principal) {
@@ -203,6 +210,7 @@ public class PostController {
     }
 
     @GetMapping("/statistics")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<StatisticsResponse> getStatistics() {
         List<Post> allPosts = postService.getAll();
         
@@ -251,6 +259,7 @@ public class PostController {
     }
 
     @PutMapping("/{postId}/replies/{replyId}/flag")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ReplySummary> flagReply(@PathVariable Long postId,
                                                   @PathVariable Long replyId,
                                                   Principal principal) {
@@ -275,6 +284,7 @@ public class PostController {
     }
 
     @PostMapping("/classes/{courseId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<PostSummary> createPostForCourse(@PathVariable Long courseId,
                                                            @RequestBody CreatePostRequest req,
                                                            Principal principal) {

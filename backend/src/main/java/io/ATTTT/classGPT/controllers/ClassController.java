@@ -12,6 +12,7 @@ import io.ATTTT.classGPT.services.EnrollmentService;
 import io.ATTTT.classGPT.repositories.EnrollmentRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.security.Principal;
 import java.util.List;
@@ -47,6 +48,7 @@ public class ClassController {
     }
 
     @PostMapping("/join-by-code")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<EnrollmentSummary> joinByCode(@RequestBody JoinCodeRequest req,
                                                         Principal principal) {
 
@@ -57,6 +59,7 @@ public class ClassController {
     }
 
     @GetMapping("/mine")
+    @PreAuthorize("isAuthenticated()")
     public List<CourseWithJoinResponse> myCourses(Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
                 .orElseThrow(() -> new IllegalArgumentException("Account not found"));
@@ -71,6 +74,7 @@ public class ClassController {
     }
 
     @PostMapping("/instructor-create")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<CourseWithJoinResponse> createCourse(@RequestBody CreateCourseRequest req,
                                                                Principal principal) {
 

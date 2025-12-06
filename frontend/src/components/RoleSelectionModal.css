@@ -1,0 +1,77 @@
+.role-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.role-modal {
+  background: white;
+  border-radius: 12px;
+  padding: 40px;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  text-align: center;
+}
+
+.role-modal h2 {
+  color: #2c3e50;
+  font-size: 24px;
+  margin: 0 0 12px 0;
+  font-weight: 600;
+}
+
+.role-modal p {
+  color: #7f8c8d;
+  font-size: 16px;
+  margin: 0 0 32px 0;
+}
+
+.role-buttons {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+}
+
+.role-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 20px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.role-button:hover:not(:disabled) {
+  border-color: #667eea;
+  background-color: #f8f9ff;
+  transform: translateY(-2px);
+}
+
+.role-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.role-icon {
+  font-size: 48px;
+}
+
+.role-text {
+  font-size: 16px;
+}

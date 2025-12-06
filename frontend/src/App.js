@@ -1,173 +1,133 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import StudentDashboard from './components/StudentDashboard';
 import InstructorDashboard from './components/InstructorDashboard';
-import LoginPage from './components/LoginPage';
+import SignupPage from './components/SignupPage';
+import RoleSelectionModal from './components/RoleSelectionModal';
+import { useAuth } from './context/AuthContext';
 import './App.css';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isInstructor, setIsInstructor] = useState(false);
+  const { isAuthenticated, user, isLoading, isInstructor, logout, checkAuthStatus } = useAuth();
+  const [showSignup, setShowSignup] = useState(false);
+  const [showRoleSelection, setShowRoleSelection] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Check if user is already logged in on mount
+  // Extract JWT token from URL after OAuth redirect
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    
+    if (token) {
+      // Store JWT token in localStorage
+      localStorage.setItem('jwt_token', token);
+      
+      // Remove token from URL
+      const cleanUrl = window.location.pathname + window.location.hash.split('?')[0];
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      // Check auth status with new token
+      checkAuthStatus();
+    }
+  }, [location, checkAuthStatus]);
+
+  // Check auth status on mount and after OAuth redirects back
   useEffect(() => {
     checkAuthStatus();
-  }, []);
+    // Re-check after delays in case we just came back from OAuth redirect
+    const timer1 = setTimeout(() => {
+      checkAuthStatus();
+    }, 500);
+    const timer2 = setTimeout(() => {
+      checkAuthStatus();
+    }, 1500);
+    const timer3 = setTimeout(() => {
+      checkAuthStatus();
+    }, 3000);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
+    };
+  }, [checkAuthStatus]);
 
-  
-const checkAuthStatus = async () => {
-  try {
-    const response = await fetch(`http://localhost:8080/api/auth/me`, {
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      setIsLoading(false);
-      return;
+  // Check if we need to show role selection modal
+  useEffect(() => {
+    const needsRoleSelection = sessionStorage.getItem('showRoleSelection') === 'true';
+    if (isAuthenticated && needsRoleSelection && user) {
+      setShowRoleSelection(true);
     }
+  }, [isAuthenticated, user]);
 
-    const contentType = response.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      setIsLoading(false);
-      return;
-    }
-
-    const accountData = await response.json();
-    const hasAdminRole =
-      accountData.authorities?.some((auth) => auth.name === 'ROLE_ADMIN') || false;
-
-    setIsInstructor(hasAdminRole);
-    setUser(accountData);
-    setIsAuthenticated(true);
-  } catch (err) {
-    console.log('Not authenticated');
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-  const handleLogin = async (userData) => {
-    try {
-      const response = await fetch(
-        'http://localhost:8080/api/auth/login',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: userData.email,
-            password: userData.password,
-          }),
-          credentials: 'include',
-        }
-      );
-
-      console.log('Login response status:', response.status);
-
-      if (response.status === 401) {
-        throw new Error('Invalid email or password');
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-
-      if (!response.ok) {
-        const text = await response.text().catch(() => '');
-        console.error(
-          'Non-OK /api/auth/login response body (first 200 chars):',
-          text.slice(0, 200)
-        );
-        throw new Error(text || `Login failed with status ${response.status}`);
-      }
-
-      if (!contentType.includes('application/json')) {
-        const text = await response.text().catch(() => '');
-        console.error(
-          'Unexpected non-JSON /api/auth/login response:',
-          text.slice(0, 200)
-        );
-        throw new Error('Server returned an unexpected response while logging in');
-      }
-
-      // This is the Account entity the backend returns
-      const accountData = await response.json();
-      console.log('Account data from /api/auth/login:', accountData);
-
-      const hasAdminRole =
-        accountData.authorities?.some(
-          (auth) => auth.name === 'ROLE_ADMIN'
-        ) || false;
-
-      setIsInstructor(hasAdminRole);
-      setUser({ ...accountData, isInstructor: hasAdminRole });
-      setIsAuthenticated(true);
-
-      return true;
-    } catch (error) {
-      console.error('Login error:', error);
-      alert('Login failed: ' + error.message);
-      throw error;
-    }
-  };
-
-
-  const handleRegister = async (userData) => {
-    try {
-      const response = await fetch('http://localhost:8080/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          fullName: userData.fullName,
-          email: userData.email,
-          password: userData.password,
-          role: userData.role,
-          classCodes: userData.classCodes || []
-        }),
-        credentials: 'include'
-      });
-
-      if (response.ok) {
-        const registeredAccount = await response.json();
-        console.log('Registered account:', registeredAccount); // Debug log
-        
-        // After successful registration, log them in
-        // Need to wait a brief moment for the registration to complete
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
-        await handleLogin({
-          email: userData.email,
-          password: userData.password,
-          role: userData.role
-        });
-      } else {
-        const error = await response.text();
-        throw new Error(error || 'Registration failed');
-      }
-    } catch (error) {
-      console.error('Registration error:', error);
-      alert('Registration failed: ' + error.message);
-      throw error;
-    }
-  };
 
   const handleLogout = async () => {
-    try {
-      await fetch('http://localhost:8080/logout', {
-        method: 'POST',
-        credentials: 'include'
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      setUser(null);
-      setIsAuthenticated(false);
-      setIsInstructor(false);
-    }
+    await logout();
   };
 
+  // Welcome/Login page
+  const WelcomePage = () => {
+    if (isLoading) {
+      return (
+        <div className="App" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          <div>Loading...</div>
+        </div>
+      );
+    }
+
+    if (showSignup) {
+      return <SignupPage />;
+    }
+
+    return (
+      <div className="App welcome-container">
+        <div className="welcome-card">
+          <h1 className="welcome-title">piazza</h1>
+          <p className="welcome-subtitle">Learn together. Anywhere.</p>
+
+          <div className="welcome-buttons">
+            <button
+              className="welcome-button google-signin"
+              onClick={() => {
+                sessionStorage.setItem('showRoleSelection', 'true');
+                window.location.href = 'http://localhost:8080/oauth2/authorization/google';
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+              Sign in with Google
+            </button>
+
+            <button
+              className="welcome-button create-account"
+              onClick={() => setShowSignup(true)}
+            >
+              Create an Account
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Show role selection modal if needed
+  if (showRoleSelection && isAuthenticated) {
+    return (
+      <RoleSelectionModal
+        userName={user?.firstName || user?.name || 'User'}
+        onRoleSelect={() => {
+          setShowRoleSelection(false);
+          checkAuthStatus(); // Re-fetch user with new role
+        }}
+      />
+    );
+  }
+
+  // Show loading state while checking auth
   if (isLoading) {
     return (
       <div className="App" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -177,8 +137,9 @@ const checkAuthStatus = async () => {
   }
 
   return (
-    <div className="App">
-      {isAuthenticated ? (
+    <Routes>
+      <Route path="/login" element={<WelcomePage />} />
+      <Route path="/" element={isAuthenticated ? (
         isInstructor ? (
           <InstructorDashboard 
             onLogout={handleLogout} 
@@ -198,10 +159,8 @@ const checkAuthStatus = async () => {
             } 
           />
         )
-      ) : (
-        <LoginPage onLogin={handleLogin} onRegister={handleRegister} />
-      )}
-    </div>
+      ) : <Navigate to="/login" />} />
+    </Routes>
   );
 }
 

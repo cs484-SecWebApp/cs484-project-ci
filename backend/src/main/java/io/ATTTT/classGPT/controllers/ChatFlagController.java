@@ -7,6 +7,7 @@ import io.ATTTT.classGPT.repositories.PostRepository;
 import io.ATTTT.classGPT.repositories.RepliesRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -30,6 +31,7 @@ public class ChatFlagController {
      * "Ask instructor about this answer" on an AI reply.
      */
     @PostMapping("/flag")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> flagAiReply(@RequestBody FlagChatReplyRequest request) {
 
         Post post = postRepository.findById(request.postId())

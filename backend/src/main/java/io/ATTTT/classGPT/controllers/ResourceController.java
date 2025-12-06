@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.io.IOException;
 import java.security.Principal;
@@ -56,6 +57,7 @@ public class ResourceController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     public List<ResourceSummary> listResources(@PathVariable Long courseId,
                                                Principal principal) {
         Account me = accountService.findByEmail(principal.getName())
@@ -71,8 +73,9 @@ public class ResourceController {
                 .toList();
     }
 
-    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<ResourceSummary> uploadResource(
+        @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        @PreAuthorize("isAuthenticated()")
+        public ResponseEntity<ResourceSummary> uploadResource(
             @PathVariable Long courseId,
             @RequestPart("file") MultipartFile file,
             @RequestPart(value = "meta", required = false) ResourceUploadMeta meta,
@@ -91,8 +94,9 @@ public class ResourceController {
         return ResponseEntity.status(CREATED).body(toSummary(saved));
     }
 
-    @GetMapping("/{resourceId}/download")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadResource(
+        @GetMapping("/{resourceId}/download")
+        @PreAuthorize("isAuthenticated()")
+        public ResponseEntity<org.springframework.core.io.Resource> downloadResource(
             @PathVariable Long courseId,
             @PathVariable Long resourceId,
             Principal principal) {
@@ -122,6 +126,7 @@ public class ResourceController {
     }
 
     @DeleteMapping("/{resourceId}")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<Void> deleteResource(@PathVariable Long courseId,
                                                @PathVariable Long resourceId,
                                                Principal principal) {

@@ -1,6 +1,7 @@
 package io.ATTTT.classGPT.controllers;
 
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import org.springframework.http.MediaType;
@@ -16,6 +17,7 @@ public class ChatController {
     }
 
     @PostMapping("/chat")
+    @PreAuthorize("isAuthenticated()")
     public String chat(@RequestParam String message) {
         return chatClient
                 .prompt()
@@ -25,15 +27,16 @@ public class ChatController {
                 .content();
     }
 
-    @GetMapping(
+        @GetMapping(
             value = "/stream",
             produces = MediaType.TEXT_EVENT_STREAM_VALUE
-    )
-    public Flux<String> chatWithStream(@RequestParam String message) {
+        )
+        @PreAuthorize("isAuthenticated()")
+        public Flux<String> chatWithStream(@RequestParam String message) {
         return chatClient
-                .prompt()
-                .user(message)
-                .stream()
-                .content();
-    }
+            .prompt()
+            .user(message)
+            .stream()
+            .content();
+        }
 }

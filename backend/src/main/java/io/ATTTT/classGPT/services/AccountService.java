@@ -73,4 +73,11 @@ public class AccountService {
 
         return Optional.of(accounts.get(0));
     }
+
+    public void updateUserRole(Account account, String roleName) {
+        Set<Authority> authorities = new HashSet<>();
+        authorityRepository.findById(roleName).ifPresent(authorities::add);
+        account.setAuthorities(authorities);
+        accountRepository.save(account);
+    }
 }

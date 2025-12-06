@@ -1,30 +1,37 @@
 package io.ATTTT.classGPT.config;
 
-import io.ATTTT.classGPT.models.Post;
+import io.ATTTT.classGPT.security.JwtAuthenticationFilter;
+import io.ATTTT.classGPT.security.JwtUtil;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import static org.springframework.security.config.Customizer.withDefaults;
 
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-
-import java.util.List;
-
+import org.springframework.beans.factory.annotation.Value;
 
 @Configuration
 @EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true, securedEnabled = true)
+@EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
+@RequiredArgsConstructor
 public class WebSecurityConfig {
+
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final JwtUtil jwtUtil;
+
+    @Value("${APP_FRONTEND_URL:http://localhost:3000}")
+    private String frontendUrl;
 
     @Bean
     public static PasswordEncoder passwordEncoder(){
@@ -36,15 +43,8 @@ public class WebSecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(withDefaults())
-                .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers(request -> {
-                            String uri = request.getRequestURI();
-                            return uri.startsWith("/api/")
-                                    || uri.startsWith("/h2-console");
-                        })
-                )
-                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .csrf(csrf -> csrf.disable()) // Disable CSRF for JWT
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless for JWT
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                     response.setContentType("application/json");
@@ -56,12 +56,14 @@ public class WebSecurityConfig {
                         .requestMatchers("/h2-console/**").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                         .requestMatchers("/api/auth/me").authenticated()
                         .requestMatchers(HttpMethod.GET, "/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/login").permitAll() // Added POST /login
+                        .requestMatchers(HttpMethod.POST, "/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/logout").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/posts").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/posts/statistics").permitAll() // Statistics endpoint
+                        .requestMatchers(HttpMethod.GET, "/api/posts/statistics").permitAll()
                         .requestMatchers(HttpMethod.PUT, "/api/posts/*/student-answer").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/replies").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/LLMReply").permitAll()
@@ -91,9 +93,35 @@ public class WebSecurityConfig {
                         })
                         .permitAll()
                 )
-                // logout config - returns JSON for API clients
+                // OAuth2 login config
+                .oauth2Login(oauth2 -> oauth2
+                        .userInfoEndpoint(userInfo -> userInfo
+                                .userService(customOAuth2UserService)
+                        )
+                        .successHandler((request, response, authentication) -> {
+                            // Generate JWT token for the authenticated user
+                            String email = authentication.getName();
+                            String jwt = jwtUtil.generateToken(email);
+                            
+                            System.out.println("OAuth2 Success! User: " + email);
+                            System.out.println("Generated JWT token");
+                            
+                            // Redirect to frontend with JWT token in URL
+                            response.sendRedirect(frontendUrl + "/#/?token=" + jwt);
+                        })
+                        .failureHandler((request, response, exception) -> {
+                            // Log the exception for debugging
+                            System.err.println("OAuth2 authentication failed: " + exception.getMessage());
+                            exception.printStackTrace();
+                            // Redirect back to frontend login page with error
+                            response.sendRedirect(frontendUrl + "/#/login?error=oauth_failed");
+                        })
+                )
+                // Add JWT filter before username/password authentication filter
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // logout config - returns JSON
                 .logout(logout -> logout
-                        .logoutUrl("/logout")
+                        .logoutUrl("/api/auth/logout")
                         .logoutSuccessHandler((request, response, authentication) -> {
                             response.setStatus(HttpServletResponse.SC_OK);
                             response.setContentType("application/json");
@@ -104,8 +132,6 @@ public class WebSecurityConfig {
                         .permitAll()
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.disable()));
-                // No httpBasic - prevents browser popup
-                // OAuth2 can be added later with .oauth2Login() without conflicts
 
         return http.build();
     }
