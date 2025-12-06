@@ -335,6 +335,8 @@
   gap: 10px;
   margin-bottom: 8px;
   font-size: 13px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .followup-author {
@@ -412,6 +414,7 @@
     margin-left: 0;
   }
 }
+
 /* Answer Sections */
 .answer-section {
   margin-bottom: 30px;
@@ -505,7 +508,6 @@
   border-radius: 4px;
 }
 
-
 .llm-badge {
   background-color: #e0f7fa;
   color: #00796b;
@@ -533,6 +535,27 @@
 .followup-item.ai-reply .followup-author {
   font-weight: 600;
   color: #1565c0;
+}
+
+/* Endorsed AI Reply */
+.followup-item.ai-reply.endorsed {
+  background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+  border-color: #81c784;
+  box-shadow: 0 0 0 1px rgba(76, 175, 80, 0.3);
+}
+
+/* Edited AI Reply */
+.followup-item.ai-reply.edited {
+  background: linear-gradient(135deg, #e3f2fd 0%, #e8f5e9 100%);
+  border-color: #64b5f6;
+  box-shadow: 0 0 0 1px rgba(33, 150, 243, 0.3);
+}
+
+/* Flagged AI Reply */
+.followup-item.ai-reply.flagged-reply {
+  background: linear-gradient(135deg, #fff3e0 0%, #fff8e1 100%);
+  border-color: #ffb74d;
+  box-shadow: 0 0 0 1px rgba(255, 152, 0, 0.3);
 }
 
 .followup-item {
@@ -617,18 +640,14 @@
   border-color: #86efac;
 }
 
-
 .followup-item button {
   white-space: nowrap;
 }
-
-
 
 .followup-item .followup-content {
   display: block;
   margin-bottom: 10px;  
 }
-
 
 .followup-item .reply-btn,
 .followup-item .flag-btn,
@@ -638,4 +657,149 @@
 
 .followups-list .followup-item {
   padding: 8px 12px 10px;
+}
+
+/* ============================================
+   ENDORSED & FLAGGED BADGES
+   ============================================ */
+
+/* Endorsed Badge - green pill next to AI Tutor */
+.endorsed-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #4caf50 0%, #43a047 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(76, 175, 80, 0.3);
+}
+
+/* Edited Badge - blue pill showing professor edited */
+.edited-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(33, 150, 243, 0.3);
+}
+
+/* Flagged Badge - orange/yellow pill */
+.flagged-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(255, 152, 0, 0.3);
+}
+
+/* Endorsement Message Box - green box below content */
+.endorsement-message {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+  border: 1px solid #a5d6a7;
+  border-radius: 6px;
+  color: #2e7d32;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Replying to banner */
+.replying-to-banner {
+  background: #e3f2fd;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #1565c0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cancel-reply-btn {
+  background: none;
+  border: none;
+  color: #1565c0;
+  font-size: 18px;
+  cursor: pointer;
+  margin-left: auto;
+  padding: 0 4px;
+}
+
+.cancel-reply-btn:hover {
+  color: #0d47a1;
+}
+
+/* ============================================
+   EDITED & INSTRUCTOR ANSWER BADGES
+   ============================================ */
+
+/* Edited Badge - blue pill for instructor edits */
+.edited-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+  color: white;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(33, 150, 243, 0.3);
+}
+
+/* Instructor Badge - for replaced responses */
+.instructor-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #333;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+  margin-left: 8px;
+  box-shadow: 0 1px 3px rgba(255, 193, 7, 0.3);
+}
+
+/* Instructor Answer styling (replaced AI response) */
+.followup-item.instructor-answer {
+  background: linear-gradient(135deg, #fffbea 0%, #fff8e1 100%) !important;
+  border-color: #ffc107 !important;
+  border-left: 3px solid #ffc107;
+}
+
+.followup-item.instructor-answer .followup-author {
+  color: #f57c00 !important;
+  font-weight: 600;
+}
+
+/* Edited AI reply styling */
+.followup-item.ai-reply.edited {
+  background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+  border-color: #2196f3;
 }

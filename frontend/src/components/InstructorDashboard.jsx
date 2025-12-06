@@ -8,8 +8,11 @@ import StatisticsPage from './StatisticsPage';
 import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
 import AccountSettings from './AccountSettings';
+import LLMNotificationBell from './LLMNotificationBell';
+import LLMReviewModal from './LLMReviewModal';
 import './EnhancedModalStyles.css';
 import './WelcomeSection.css';
+import './LLMNotifications.css';
 
 const API_BASE = 'http://localhost:8080';
 
@@ -29,20 +32,46 @@ const normalizePosts = (apiPosts) =>
     const followups = (p.replies || []).map((r) => {
       const isLLMReply = Boolean(r.llmGenerated);
 
-      const authorName = isLLMReply
-        ? 'AI Tutor'
-        : (r.author
-            ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-            : 'Unknown');
+      // Determine author name based on reply state
+      let authorName;
+      let displayAsAI = isLLMReply;
+      
+      if (r.replacedByInstructor) {
+        // Instructor completely replaced - show as instructor answer
+        const editorName = r.editedByName || 
+          (r.editedBy ? `${r.editedBy.firstName || ''} ${r.editedBy.lastName || ''}`.trim() : null);
+        authorName = editorName || 'Instructor';
+        displayAsAI = false; // No longer show as AI
+      } else if (r.instructorEdited && isLLMReply) {
+        // AI response edited by instructor - still show as AI but note edit
+        authorName = 'AI Tutor';
+        displayAsAI = true;
+      } else if (isLLMReply) {
+        authorName = 'AI Tutor';
+      } else if (r.author) {
+        authorName = `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim();
+      } else if (r.authorName) {
+        authorName = r.authorName;
+      } else {
+        authorName = 'Unknown';
+      }
 
       return {
         id: r.id,
         author: authorName,
         parentReplyId: r.parentReplyId ?? null,
-        isLLMReply,
-        llmGenerated: isLLMReply,
-        fromInstructor: r.fromInstructor || false,
+        isLLMReply: displayAsAI,
+        llmGenerated: r.llmGenerated,
+        fromInstructor: r.fromInstructor || r.replacedByInstructor || false,
         endorsed: r.endorsed || false,
+        flagged: r.flagged || false,
+        reviewed: r.reviewed || false,
+        instructorEdited: r.instructorEdited || false,
+        replacedByInstructor: r.replacedByInstructor || false,
+        editedByName: r.editedByName || 
+          (r.editedBy ? `${r.editedBy.firstName || ''} ${r.editedBy.lastName || ''}`.trim() : null),
+        editedAt: r.editedAt ? new Date(r.editedAt).toLocaleString() : null,
+        flagReason: r.flagReason || null,
         time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
         content: r.body,
       };
@@ -102,7 +131,7 @@ const normalizePosts = (apiPosts) =>
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);  // NEW: Track welcome page visibility
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
   const [newCourse, setNewCourse] = useState({ code: '', name: '', term: '' });
@@ -116,7 +145,12 @@ const normalizePosts = (apiPosts) =>
   const [courseCreateError, setCourseCreateError] = useState(null);
 
   const [isInstructor, setIsInstructor] = useState(false);
-    useEffect(() => {
+
+  // LLM Review Modal state
+  const [showLLMReviewModal, setShowLLMReviewModal] = useState(false);
+  const [selectedLLMNotification, setSelectedLLMNotification] = useState(null);
+
+  useEffect(() => {
     const fetchMe = async () => {
       try {
         const res = await axios.get(`${API_BASE}/api/accounts/me`, {
@@ -143,7 +177,7 @@ const normalizePosts = (apiPosts) =>
   useEffect(() => {
     const fetchCourses = async () => {
       try {
-        const res = await axios.get('http://localhost:8080/api/classes/mine', {
+        const res = await axios.get(`${API_BASE}/api/classes/mine`, {
           withCredentials: true,
         });
         const list = res.data || [];
@@ -171,7 +205,7 @@ const normalizePosts = (apiPosts) =>
     const fetchPosts = async () => {
       try {
         const response = await axios.get(
-          `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+          `${API_BASE}/api/posts/classes/${activeCourse.id}`,
           { withCredentials: true }
         );
         console.log('Instructor raw posts:', response.data); 
@@ -192,14 +226,15 @@ const normalizePosts = (apiPosts) =>
   const handleLLMReply = async (postId) => {
     try {
       await axios.post(
-        `http://localhost:8080/api/posts/${postId}/LLMReply`,
+        `${API_BASE}/api/posts/${postId}/LLMReply`,
         {},
         { withCredentials: true }
       );
 
-      const res = await axios.get('http://localhost:8080/api/posts', {
-        withCredentials: true,
-      });
+      const res = await axios.get(
+        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
+        { withCredentials: true }
+      );
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
@@ -218,7 +253,7 @@ const normalizePosts = (apiPosts) =>
 
     try {
       await axios.post(
-        `http://localhost:8080/api/posts/${postId}/replies`,
+        `${API_BASE}/api/posts/${postId}/replies`,
         {
           body: text,
           parentReplyId,
@@ -227,7 +262,7 @@ const normalizePosts = (apiPosts) =>
       );
 
       const res = await axios.get(
-        `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
         { withCredentials: true }
       );
       const normalized = normalizePosts(res.data);
@@ -248,14 +283,15 @@ const normalizePosts = (apiPosts) =>
   const handleEndorseReply = async (postId, replyId) => {
     try {
       await axios.put(
-        `http://localhost:8080/api/posts/${postId}/replies/${replyId}/endorse`,
+        `${API_BASE}/api/posts/${postId}/replies/${replyId}/endorse`,
         {},
         { withCredentials: true }
       );
 
-      const res = await axios.get('http://localhost:8080/api/posts', {
-        withCredentials: true,
-      });
+      const res = await axios.get(
+        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
+        { withCredentials: true }
+      );
       const normalized = normalizePosts(res.data);
       setPosts(normalized);
 
@@ -273,7 +309,7 @@ const normalizePosts = (apiPosts) =>
 
     try {
       const response = await axios.post(
-        `http://localhost:8080/api/posts/classes/${activeCourse.id}`,
+        `${API_BASE}/api/posts/classes/${activeCourse.id}`,
         { title, body },
         { withCredentials: true }
       );
@@ -282,7 +318,7 @@ const normalizePosts = (apiPosts) =>
       setPosts(prev => [newPost, ...prev]);
       setSelectedPost(newPost);
       setCreatedPost(false);
-      setShowWelcome(false);  // Hide welcome after creating post
+      setShowWelcome(false);
     } catch (err) {
       console.error(err);
       setError('Error posting new question');
@@ -307,14 +343,14 @@ const normalizePosts = (apiPosts) =>
   const handleNewPost = () => {
     setCreatedPost(true);
     setShowStatistics(false);
-    setShowWelcome(false);  // Hide welcome when creating new post
+    setShowWelcome(false);
   };
 
   const handlePostClick = (postId) => {
     const post = posts.find((p) => p.id === postId);
     setSelectedPost(post);
     setShowStatistics(false);
-    setShowWelcome(false);  // Hide welcome when clicking a post
+    setShowWelcome(false);
   };
 
   const handleFilterClick = (filter) => {
@@ -325,7 +361,7 @@ const normalizePosts = (apiPosts) =>
     setSelectedPost(null);
     setShowStatistics(false);
     setCreatedPost(false);
-    setShowWelcome(true);  // Show welcome when clicking logo
+    setShowWelcome(true);
   };
 
 
@@ -359,7 +395,42 @@ const normalizePosts = (apiPosts) =>
     setShowStatistics(true);
     setSelectedPost(null);
     setCreatedPost(false);
-    setShowWelcome(false);  // Hide welcome when viewing statistics
+    setShowWelcome(false);
+  };
+
+  // LLM Review handlers
+  const handleLLMReviewClick = (notification) => {
+    setSelectedLLMNotification(notification);
+    setShowLLMReviewModal(true);
+  };
+
+  const handleLLMReviewClose = () => {
+    setShowLLMReviewModal(false);
+    setSelectedLLMNotification(null);
+  };
+
+  const handleLLMReviewUpdate = async () => {
+    // Refresh posts to show updated LLM response
+    if (activeCourse) {
+      try {
+        const response = await axios.get(
+          `${API_BASE}/api/posts/classes/${activeCourse.id}`,
+          { withCredentials: true }
+        );
+        const normalizedPosts = normalizePosts(response.data);
+        setPosts(normalizedPosts);
+
+        // Update selected post if viewing one
+        if (selectedPost) {
+          const updatedPost = normalizedPosts.find(p => p.id === selectedPost.id);
+          if (updatedPost) {
+            setSelectedPost(updatedPost);
+          }
+        }
+      } catch (err) {
+        console.error('Error refreshing posts:', err);
+      }
+    }
   };
 
 
@@ -377,7 +448,7 @@ const handleCreateCourseSubmit = async (e) => {
 
   try {
     const res = await axios.post(
-      'http://localhost:8080/api/classes/instructor-create',
+      `${API_BASE}/api/classes/instructor-create`,
       { code, name, term },
       { withCredentials: true }
     );
@@ -519,6 +590,12 @@ const handleCreateCourseSubmit = async (e) => {
             </div>
 
             <div className="header-right">
+              {/* LLM Notification Bell */}
+              <LLMNotificationBell 
+                onReviewClick={handleLLMReviewClick}
+                activeCourse={activeCourse}
+              />
+              
               <div className="user-info" style={{ position: 'relative' }}>
                 <button
                   className="user-avatar"
@@ -708,16 +785,16 @@ const handleCreateCourseSubmit = async (e) => {
 
                     {/* AI Management */}
                     <div className="instruction-card">
-                      <div className="instruction-icon purple">🤖</div>
-                      <h3 className="instruction-title">AI Assistant Management</h3>
+                      <div className="instruction-icon purple">🚩</div>
+                      <h3 className="instruction-title">Review Flagged Responses</h3>
                       <p className="instruction-description">
-                        Review and improve AI responses for your course.
+                        Students can flag AI responses they think are incorrect.
                       </p>
                       <ul className="instruction-steps">
-                        <li><strong>Review:</strong> See AI-generated responses on posts</li>
-                        <li><strong>Endorse:</strong> Mark accurate AI answers with ✓</li>
-                        <li><strong>Replace:</strong> Write your own answer if AI is wrong</li>
-                        <li><strong>Flagged:</strong> Students can flag AI for your review</li>
+                        <li><strong>🚩 Notifications:</strong> Click the flag icon when students report issues</li>
+                        <li><strong>Review:</strong> Read the AI response and student concern</li>
+                        <li><strong>Endorse:</strong> Mark correct AI answers with ✓</li>
+                        <li><strong>Edit:</strong> Fix or replace incorrect responses</li>
                       </ul>
                     </div>
 
@@ -922,6 +999,14 @@ const handleCreateCourseSubmit = async (e) => {
               </div>
             </div>
           )}
+
+          {/* LLM REVIEW MODAL */}
+          <LLMReviewModal
+            isOpen={showLLMReviewModal}
+            onClose={handleLLMReviewClose}
+            notification={selectedLLMNotification}
+            onUpdate={handleLLMReviewUpdate}
+          />
         </>
       )}
     </div>

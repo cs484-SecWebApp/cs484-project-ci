@@ -1,6 +1,7 @@
 package io.ATTTT.classGPT.controllers;
 
 import io.ATTTT.classGPT.dto.PostSummary;
+import io.ATTTT.classGPT.dto.LLMActivityDto;
 import io.ATTTT.classGPT.models.Account;
 import io.ATTTT.classGPT.models.Post;
 import io.ATTTT.classGPT.models.Replies;
@@ -10,6 +11,7 @@ import io.ATTTT.classGPT.services.EnrollmentService;
 import io.ATTTT.classGPT.services.GeminiService;
 import io.ATTTT.classGPT.services.PostService;
 import io.ATTTT.classGPT.services.CourseService;
+import io.ATTTT.classGPT.services.AILearningService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -19,15 +21,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
-import io.ATTTT.classGPT.dto.PostSummary;
 import io.ATTTT.classGPT.dto.ReplySummary;
-
 
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/posts")
@@ -42,6 +43,49 @@ public class PostController {
     private final RepliesRepository repliesRepository;
     private final EnrollmentService enrollmentService;
     private final CourseService courseService;
+    private final AILearningService aiLearningService;
+
+    // ============================================
+    // AI LEARNING ENDPOINTS
+    // ============================================
+
+    /**
+     * Get training data for AI improvement (for a specific course)
+     */
+    @GetMapping("/classes/{courseId}/ai-training-data")
+    public ResponseEntity<List<AILearningService.TrainingExample>> getAITrainingData(
+            @PathVariable Long courseId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        List<AILearningService.TrainingExample> data = aiLearningService.getTrainingDataForCourse(courseId);
+        return ResponseEntity.ok(data);
+    }
+
+    /**
+     * Get AI training statistics
+     */
+    @GetMapping("/classes/{courseId}/ai-training-stats")
+    public ResponseEntity<AILearningService.TrainingStats> getAITrainingStats(
+            @PathVariable Long courseId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        AILearningService.TrainingStats stats = aiLearningService.getTrainingStats(courseId);
+        return ResponseEntity.ok(stats);
+    }
 
     private PostSummary toPostSummary(Post p) {
         var course = p.getCourse();
@@ -65,6 +109,7 @@ public class PostController {
 
     private ReplySummary toReplySummary(Replies r) {
         var author = r.getAuthor();
+        var editedBy = r.getEditedBy();
         return new ReplySummary(
                 r.getId(),
                 r.getBody(),
@@ -72,10 +117,18 @@ public class PostController {
                 r.isLlmGenerated(),
                 r.isEndorsed(),
                 r.isFlagged(),
+                r.isReviewed(),
+                r.isInstructorEdited(),
+                r.isReplacedByInstructor(),
                 r.getParentReplyId(),
                 author != null ? author.getId() : null,
                 author != null ? (author.getFirstName() + " " + author.getLastName()) : null,
-                r.getCreatedAt()
+                editedBy != null ? (editedBy.getFirstName() + " " + editedBy.getLastName()) : null,
+                r.getFlagReason(),
+                r.getOriginalLlmResponse(),
+                r.getCreatedAt(),
+                r.getEditedAt(),
+                r.getFlaggedAt()
         );
     }
 
@@ -88,7 +141,12 @@ public class PostController {
                 .toList();
     }
 
-
+    @GetMapping("/{id}")
+    public ResponseEntity<Post> getPostById(@PathVariable Long id, Principal principal) {
+        return postService.getById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
 
     @GetMapping("/classes/{courseId}")
     public List<Post> getPostsForCourse(@PathVariable Long courseId, Principal principal) {
@@ -119,7 +177,6 @@ public class PostController {
 
 
     @DeleteMapping("/{id}")
-//    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Object> deletePost(@PathVariable Long id) {
         return postService.getById(id)
                 .map(post -> {
@@ -175,6 +232,7 @@ public class PostController {
         reply.setFromInstructor(false);
         reply.setLlmGenerated(true);
         reply.setParentReplyId(null);
+        reply.setReviewed(false);  // Mark as unreviewed initially
 
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(toReplySummary(saved));
@@ -196,64 +254,304 @@ public class PostController {
             return ResponseEntity.badRequest().build();
         }
 
-        reply.setEndorsed(!reply.isEndorsed());
+        Account account = null;
+        if (principal != null) {
+            account = accountService.findByEmail(principal.getName()).orElse(null);
+        }
+
+        boolean wasEndorsed = reply.isEndorsed();
+        reply.setEndorsed(!wasEndorsed);
+        
+        // If endorsing an LLM reply, also mark it as reviewed and clear flags
+        if (reply.isLlmGenerated() && reply.isEndorsed()) {
+            reply.setReviewed(true);
+            reply.setReviewedAt(LocalDateTime.now());
+            reply.setReviewedBy(account);
+            
+            // Clear any flags since instructor has endorsed it
+            reply.setFlagged(false);
+            reply.setFlaggedAt(null);
+            reply.setFlaggedBy(null);
+            reply.setFlagReason(null);
+            
+            log.info("AI response {} endorsed by instructor {}. This is a positive training example.", 
+                    replyId, account != null ? account.getEmail() : "unknown");
+        }
+        
         Replies saved = repliesRepository.save(reply);
 
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    @GetMapping("/statistics")
-    public ResponseEntity<StatisticsResponse> getStatistics() {
-        List<Post> allPosts = postService.getAll();
-        
-        StatisticsResponse stats = new StatisticsResponse();
-        stats.totalPosts = allPosts.size();
-        stats.totalReplies = 0;
-        stats.totalAIReplies = 0;
-        stats.totalEndorsements = 0;
-        
-        List<AIGenerationInfo> aiGenerations = new ArrayList<>();
-        
-        for (Post post : allPosts) {
-            List<Replies> replies = post.getReplies();
-            if (replies != null) {
-                stats.totalReplies += replies.size();
-                
-                for (Replies reply : replies) {
-                    // Track AI generations
-                    if (reply.isLlmGenerated()) {
-                        stats.totalAIReplies++;
-                        
-                        AIGenerationInfo info = new AIGenerationInfo();
-                        info.replyId = reply.getId();
-                        info.postId = post.getId();
-                        info.postTitle = post.getTitle();
-                        info.generatedAt = reply.getCreatedAt();
-                        info.endorsed = reply.isEndorsed();
-                        info.flagged  = reply.isFlagged();
-                        info.replyBody = reply.getBody();
-                        aiGenerations.add(info);
-                    }
-                    
-                    // Count endorsements
-                    if (reply.isEndorsed()) {
-                        stats.totalEndorsements++;
-                    }
-                }
-            }
+    // ============================================
+    // LLM ACTIVITY ENDPOINTS
+    // ============================================
+
+    /**
+     * Get only FLAGGED LLM responses for a course (for instructor notification bell)
+     */
+    @GetMapping("/classes/{courseId}/flagged-responses")
+    public ResponseEntity<List<LLMActivityDto>> getFlaggedResponses(
+            @PathVariable Long courseId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor has access to this course
+        if (!enrollmentService.isEnrolled(account.getId(), courseId) &&
+                !account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
         }
-        
-        // Sort AI generations by most recent
-        aiGenerations.sort((a, b) -> b.generatedAt.compareTo(a.generatedAt));
-        stats.aiGenerations = aiGenerations;
-        
-        return ResponseEntity.ok(stats);
+
+        // Get all posts for this course
+        List<Post> posts = postService.getPostsForCourse(courseId);
+
+        // Extract only FLAGGED LLM replies
+        List<LLMActivityDto> flaggedResponses = posts.stream()
+                .flatMap(post -> post.getReplies().stream()
+                        .filter(reply -> reply.isLlmGenerated() && reply.isFlagged())
+                        .map(reply -> {
+                            LLMActivityDto dto = new LLMActivityDto(
+                                reply.getId(),
+                                post.getId(),
+                                post.getTitle(),
+                                reply.getBody().length() > 100
+                                        ? reply.getBody().substring(0, 100) + "..."
+                                        : reply.getBody(),
+                                reply.getCreatedAt(),
+                                reply.isReviewed(),
+                                reply.isFlagged(),
+                                reply.isEndorsed()
+                            );
+                            dto.setFlagReason(reply.getFlagReason());
+                            dto.setFlaggedByName(reply.getFlaggedByName());
+                            return dto;
+                        }))
+                .sorted((a, b) -> {
+                    // Sort: unreviewed first, then by date descending
+                    if (a.isReviewed() != b.isReviewed()) {
+                        return a.isReviewed() ? 1 : -1;
+                    }
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(flaggedResponses);
     }
 
+    /**
+     * Get all LLM activity for a course (for statistics/full view)
+     */
+    @GetMapping("/classes/{courseId}/llm-activity")
+    public ResponseEntity<List<LLMActivityDto>> getLLMActivity(
+            @PathVariable Long courseId,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor has access to this course
+        if (!enrollmentService.isEnrolled(account.getId(), courseId) &&
+                !account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        // Get all posts for this course
+        List<Post> posts = postService.getPostsForCourse(courseId);
+
+        // Extract all LLM replies
+        List<LLMActivityDto> llmActivity = posts.stream()
+                .flatMap(post -> post.getReplies().stream()
+                        .filter(Replies::isLlmGenerated)
+                        .map(reply -> new LLMActivityDto(
+                                reply.getId(),
+                                post.getId(),
+                                post.getTitle(),
+                                reply.getBody().length() > 100
+                                        ? reply.getBody().substring(0, 100) + "..."
+                                        : reply.getBody(),
+                                reply.getCreatedAt(),
+                                reply.isReviewed(),
+                                reply.isFlagged(),
+                                reply.isEndorsed()
+                        )))
+                .sorted((a, b) -> {
+                    // Sort: unreviewed first, then flagged, then by date descending
+                    if (a.isReviewed() != b.isReviewed()) {
+                        return a.isReviewed() ? 1 : -1;
+                    }
+                    if (a.isFlagged() != b.isFlagged()) {
+                        return a.isFlagged() ? -1 : 1;
+                    }
+                    return b.getCreatedAt().compareTo(a.getCreatedAt());
+                })
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(llmActivity);
+    }
+
+    /**
+     * Mark a reply as reviewed
+     */
+    @PutMapping("/{postId}/replies/{replyId}/review")
+    public ResponseEntity<?> markReplyAsReviewed(
+            @PathVariable Long postId,
+            @PathVariable Long replyId,
+            @RequestBody ReviewRequest request,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor role
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only instructors can review responses");
+        }
+
+        Replies reply = repliesRepository.findById(replyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reply not found"));
+
+        reply.setReviewed(true);
+        reply.setReviewedAt(LocalDateTime.now());
+        reply.setReviewedBy(account);
+
+        if (request.getFeedback() != null) {
+            reply.setReviewFeedback(request.getFeedback());
+        }
+
+        repliesRepository.save(reply);
+
+        return ResponseEntity.ok().build();
+    }
+
+    /**
+     * Update reply content (instructor editing LLM response)
+     * Keeps llmGenerated=true but marks as edited by instructor
+     */
+    @PutMapping("/{postId}/replies/{replyId}")
+    public ResponseEntity<ReplySummary> updateReply(
+            @PathVariable Long postId,
+            @PathVariable Long replyId,
+            @RequestBody UpdateReplyRequest request,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        // Verify instructor role
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only instructors can edit responses");
+        }
+
+        Replies reply = repliesRepository.findById(replyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reply not found"));
+
+        // Store original for AI learning purposes
+        if (reply.isLlmGenerated() && reply.getOriginalLlmResponse() == null) {
+            reply.setOriginalLlmResponse(reply.getBody());
+        }
+
+        // Update response content
+        reply.setBody(request.getBody());
+        reply.setInstructorEdited(true);
+        reply.setEditedAt(LocalDateTime.now());
+        reply.setEditedBy(account);
+        
+        // Mark as reviewed and endorsed
+        reply.setReviewed(true);
+        reply.setReviewedAt(LocalDateTime.now());
+        reply.setReviewedBy(account);
+        reply.setEndorsed(true);
+        
+        // Clear any flags since instructor has addressed it
+        reply.setFlagged(false);
+        reply.setFlaggedAt(null);
+        reply.setFlaggedBy(null);
+        reply.setFlagReason(null);
+
+        // NOTE: llmGenerated stays TRUE - this is still an AI response, just edited
+        // This allows it to still show as "AI Tutor" but with "Edited by Professor" badge
+
+        if (request.getFeedback() != null) {
+            reply.setReviewFeedback(request.getFeedback());
+        }
+
+        Replies saved = repliesRepository.save(reply);
+        
+        log.info("AI response {} edited by instructor {}. Original stored for learning.", 
+                replyId, account.getEmail());
+
+        return ResponseEntity.ok(toReplySummary(saved));
+    }
+
+    /**
+     * Replace LLM response entirely with instructor's answer
+     * Sets llmGenerated=false, marks as instructor response
+     */
+    @PutMapping("/{postId}/replies/{replyId}/replace")
+    public ResponseEntity<ReplySummary> replaceLLMResponse(
+            @PathVariable Long postId,
+            @PathVariable Long replyId,
+            @RequestBody UpdateReplyRequest request,
+            Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
+
+        if (!account.hasRole("ROLE_ADMIN")) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN);
+        }
+
+        Replies reply = repliesRepository.findById(replyId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+
+        // Store original LLM response for training data (negative example)
+        if (reply.isLlmGenerated()) {
+            reply.setOriginalLlmResponse(reply.getBody());
+            reply.setLlmGenerated(false); // Mark as no longer AI-generated
+        }
+
+        reply.setBody(request.getBody());
+        reply.setInstructorEdited(true);
+        reply.setReplacedByInstructor(true);
+        reply.setEditedAt(LocalDateTime.now());
+        reply.setEditedBy(account);
+        reply.setReviewed(true);
+        reply.setReviewedAt(LocalDateTime.now());
+        reply.setReviewedBy(account);
+        reply.setEndorsed(true);
+        reply.setFromInstructor(true);
+        
+        // Clear any flags since instructor has replaced it
+        reply.setFlagged(false);
+        reply.setFlaggedAt(null);
+        reply.setFlaggedBy(null);
+        reply.setFlagReason(null);
+
+        if (request.getFeedback() != null) {
+            reply.setReviewFeedback(request.getFeedback());
+        }
+
+        Replies saved = repliesRepository.save(reply);
+        
+        log.info("AI response {} replaced by instructor {}. Original stored for learning as negative example.", 
+                replyId, account.getEmail());
+
+        return ResponseEntity.ok(toReplySummary(saved));
+    }
+
+    /**
+     * Flag an LLM response (for students)
+     */
     @PutMapping("/{postId}/replies/{replyId}/flag")
     public ResponseEntity<ReplySummary> flagReply(@PathVariable Long postId,
                                                   @PathVariable Long replyId,
+                                                  @RequestBody(required = false) FlagRequest request,
                                                   Principal principal) {
+
+        Account account = accountService.findByEmail(principal.getName())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
 
         Optional<Replies> replyOpt = repliesRepository.findById(replyId);
         if (replyOpt.isEmpty()) {
@@ -270,9 +568,80 @@ public class PostController {
         }
 
         reply.setFlagged(!reply.isFlagged());
+        
+        if (reply.isFlagged()) {
+            reply.setFlaggedAt(LocalDateTime.now());
+            reply.setFlaggedBy(account);
+            if (request != null && request.getReason() != null) {
+                reply.setFlagReason(request.getReason());
+            }
+        } else {
+            // Unflagging - clear the flag info
+            reply.setFlaggedAt(null);
+            reply.setFlaggedBy(null);
+            reply.setFlagReason(null);
+        }
+        
         Replies saved = repliesRepository.save(reply);
         return ResponseEntity.ok(toReplySummary(saved));
     }
+
+    // ============================================
+    // STATISTICS ENDPOINT
+    // ============================================
+
+    @GetMapping("/statistics")
+    public ResponseEntity<StatisticsResponse> getStatistics() {
+        List<Post> allPosts = postService.getAll();
+
+        StatisticsResponse stats = new StatisticsResponse();
+        stats.totalPosts = allPosts.size();
+        stats.totalReplies = 0;
+        stats.totalAIReplies = 0;
+        stats.totalEndorsements = 0;
+
+        List<AIGenerationInfo> aiGenerations = new ArrayList<>();
+
+        for (Post post : allPosts) {
+            List<Replies> replies = post.getReplies();
+            if (replies != null) {
+                stats.totalReplies += replies.size();
+
+                for (Replies reply : replies) {
+                    // Track AI generations
+                    if (reply.isLlmGenerated()) {
+                        stats.totalAIReplies++;
+
+                        AIGenerationInfo info = new AIGenerationInfo();
+                        info.replyId = reply.getId();
+                        info.postId = post.getId();
+                        info.postTitle = post.getTitle();
+                        info.generatedAt = reply.getCreatedAt();
+                        info.endorsed = reply.isEndorsed();
+                        info.flagged = reply.isFlagged();
+                        info.reviewed = reply.isReviewed();
+                        info.replyBody = reply.getBody();
+                        aiGenerations.add(info);
+                    }
+
+                    // Count endorsements
+                    if (reply.isEndorsed()) {
+                        stats.totalEndorsements++;
+                    }
+                }
+            }
+        }
+
+        // Sort AI generations by most recent
+        aiGenerations.sort((a, b) -> b.generatedAt.compareTo(a.generatedAt));
+        stats.aiGenerations = aiGenerations;
+
+        return ResponseEntity.ok(stats);
+    }
+
+    // ============================================
+    // CREATE POST FOR COURSE
+    // ============================================
 
     @PostMapping("/classes/{courseId}")
     public ResponseEntity<PostSummary> createPostForCourse(@PathVariable Long courseId,
@@ -303,15 +672,41 @@ public class PostController {
 
         Post saved = postService.save(post);
 
-
         return ResponseEntity.ok(toPostSummary(saved));
     }
 
+    // ============================================
+    // REQUEST/RESPONSE DTOs
+    // ============================================
 
     @Data
     public static class CreateFollowupRequest {
         private String body;
         private Long parentReplyId;
+    }
+
+    @Data
+    public static class CreatePostRequest {
+        private String title;
+        private String body;
+    }
+
+    @Data
+    public static class ReviewRequest {
+        private boolean reviewed;
+        private String feedback;
+    }
+
+    @Data
+    public static class UpdateReplyRequest {
+        private String body;
+        private boolean instructorEdited;
+        private String feedback;
+    }
+
+    @Data
+    public static class FlagRequest {
+        private String reason;
     }
 
     @Data
@@ -331,13 +726,7 @@ public class PostController {
         public LocalDateTime generatedAt;
         public boolean endorsed;
         public boolean flagged;
+        public boolean reviewed;
         public String replyBody;
     }
-
-    @Data
-    public static class CreatePostRequest {
-        private String title;
-        private String body;
-    }
-
 }

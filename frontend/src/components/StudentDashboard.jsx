@@ -23,17 +23,46 @@ const StudentDashboard = ({ onLogout, userName }) => {
       const followups = (p.replies || []).map((r) => {
         const isLLMReply = Boolean(r.llmGenerated);
 
-        const authorName = isLLMReply
-          ? 'AI Tutor'
-          : (r.author
-              ? `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim()
-              : 'Unknown');
+        // Determine author name based on reply state
+        let authorName;
+        let displayAsAI = isLLMReply;
+        
+        if (r.replacedByInstructor) {
+          // Instructor completely replaced - show as instructor answer
+          const editorName = r.editedByName || 
+            (r.editedBy ? `${r.editedBy.firstName || ''} ${r.editedBy.lastName || ''}`.trim() : null);
+          authorName = editorName || 'Instructor';
+          displayAsAI = false; // No longer show as AI
+        } else if (r.instructorEdited && isLLMReply) {
+          // AI response edited by instructor - still show as AI but note edit
+          authorName = 'AI Tutor';
+          displayAsAI = true;
+        } else if (isLLMReply) {
+          authorName = 'AI Tutor';
+        } else if (r.author) {
+          authorName = `${r.author.firstName || ''} ${r.author.lastName || ''}`.trim();
+        } else if (r.authorName) {
+          authorName = r.authorName;
+        } else {
+          authorName = 'Unknown';
+        }
 
         return {
           id: r.id,
           author: authorName,
           parentReplyId: r.parentReplyId ?? null,
-          isLLMReply,
+          isLLMReply: displayAsAI,
+          llmGenerated: r.llmGenerated,
+          fromInstructor: r.fromInstructor || r.replacedByInstructor || false,
+          endorsed: r.endorsed || false,
+          flagged: r.flagged || false,
+          reviewed: r.reviewed || false,
+          instructorEdited: r.instructorEdited || false,
+          replacedByInstructor: r.replacedByInstructor || false,
+          editedByName: r.editedByName || 
+            (r.editedBy ? `${r.editedBy.firstName || ''} ${r.editedBy.lastName || ''}`.trim() : null),
+          editedAt: r.editedAt ? new Date(r.editedAt).toLocaleString() : null,
+          flagReason: r.flagReason || null,
           time: r.createdAt ? new Date(r.createdAt).toLocaleString() : '',
           content: r.body,
         };
@@ -78,13 +107,20 @@ const StudentDashboard = ({ onLogout, userName }) => {
   const [showJoinClassModel, setShowJoinClassModel] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
-  const [showWelcome, setShowWelcome] = useState(true);  // NEW: Track welcome page visibility
+  const [showWelcome, setShowWelcome] = useState(true);
 
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const [isInstructor, setIsInstructor] = useState(false);
+
+  // ----- Flag Modal State -----
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flaggingReplyId, setFlaggingReplyId] = useState(null);
+  const [flaggingPostId, setFlaggingPostId] = useState(null);
+  const [flagReason, setFlagReason] = useState('');
+  const [flagLoading, setFlagLoading] = useState(false);
 
   // ---------- load enrolled classes ----------
   const loadCourses = async () => {
@@ -238,10 +274,50 @@ const StudentDashboard = ({ onLogout, userName }) => {
       setPosts((prev) => [newPost, ...prev]);
       setSelectedPost(newPost);
       setCreatedPost(false);
-      setShowWelcome(false);  // Hide welcome after creating post
+      setShowWelcome(false);
     } catch (err) {
       console.error(err);
       setError('Error posting new question');
+    }
+  };
+
+  // ---------- Flag AI Response Handler ----------
+  const openFlagModal = (postId, replyId) => {
+    setFlaggingPostId(postId);
+    setFlaggingReplyId(replyId);
+    setFlagReason('');
+    setShowFlagModal(true);
+  };
+
+  const closeFlagModal = () => {
+    setShowFlagModal(false);
+    setFlaggingPostId(null);
+    setFlaggingReplyId(null);
+    setFlagReason('');
+  };
+
+  const handleFlagAIResponse = async () => {
+    if (!flaggingPostId || !flaggingReplyId) return;
+
+    try {
+      setFlagLoading(true);
+      await axios.put(
+        `${API_BASE}/api/posts/${flaggingPostId}/replies/${flaggingReplyId}/flag`,
+        { reason: flagReason },
+        { withCredentials: true }
+      );
+
+      // Refresh posts to show updated flag status
+      const normalized = await refetchPostsForActiveCourse();
+      const updatedPost = normalized.find((p) => p.id === flaggingPostId);
+      if (updatedPost) setSelectedPost(updatedPost);
+
+      closeFlagModal();
+    } catch (err) {
+      console.error('Error flagging response:', err);
+      alert('Failed to flag response. Please try again.');
+    } finally {
+      setFlagLoading(false);
     }
   };
 
@@ -263,19 +339,19 @@ const StudentDashboard = ({ onLogout, userName }) => {
   // ----- UI handlers -----
   const handleNewPost = () => {
     setCreatedPost(true);
-    setShowWelcome(false);  // Hide welcome when creating new post
+    setShowWelcome(false);
   };
 
   const handlePostClick = (postId) => {
     const post = posts.find((p) => p.id === postId);
     setSelectedPost(post);
-    setShowWelcome(false);  // Hide welcome when clicking a post
+    setShowWelcome(false);
   };
 
   const handleLogoClick = () => {
     setSelectedPost(null);
     setCreatedPost(false);
-    setShowWelcome(true);  // Show welcome when clicking logo
+    setShowWelcome(true);
   };
 
   const handleCourseSelect = (course) => {
@@ -630,7 +706,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
                         <li>Open any post/question</li>
                         <li>Click the "AI" button in the actions bar</li>
                         <li>AI generates a helpful response</li>
-                        <li>Click "Let's talk more" to chat further</li>
+                        <li>Flag incorrect answers for instructor review</li>
                       </ol>
                     </div>
 
@@ -646,7 +722,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
                         <li>Check "Pinned" posts for important announcements</li>
                         <li>Reply to help other students</li>
                         <li>Upvote helpful answers</li>
-                        <li>Flag AI responses for instructor review</li>
+                        <li>🚩 Flag AI responses if they seem incorrect</li>
                       </ul>
                     </div>
                   </div>
@@ -668,8 +744,8 @@ const StudentDashboard = ({ onLogout, userName }) => {
                         Star posts to bookmark them for later
                       </li>
                       <li className="tip-item">
-                        <span className="tip-icon">🤖</span>
-                        AI answers are instant but verify with instructors
+                        <span className="tip-icon">🚩</span>
+                        Flag AI answers that seem wrong - instructors will review
                       </li>
                     </ul>
                   </div>
@@ -681,6 +757,7 @@ const StudentDashboard = ({ onLogout, userName }) => {
                   onBack={() => setSelectedPost(null)}
                   onLLMReply={handleLLMReply}
                   onFollowupSubmit={handleFollowupSubmit}
+                  onFlagAIResponse={openFlagModal}
                 />
               ) : (
                 /* Fallback - show welcome if nothing else matches */
@@ -705,6 +782,218 @@ const StudentDashboard = ({ onLogout, userName }) => {
             onClose={() => setShowJoinClassModel(false)}
             onJoin={handleJoinClassSubmit}
           />
+
+          {/* Flag AI Response Modal */}
+          {showFlagModal && (
+            <div className="flag-modal-overlay" onClick={closeFlagModal}>
+              <div className="flag-modal" onClick={(e) => e.stopPropagation()}>
+                <div className="flag-modal-header">
+                  <h3>🚩 Flag AI Response</h3>
+                  <button className="flag-modal-close" onClick={closeFlagModal}>×</button>
+                </div>
+                
+                <p className="flag-modal-description">
+                  Let your instructor know this AI response needs review. They'll be notified and can correct or improve it.
+                </p>
+                
+                <div className="flag-modal-field">
+                  <label>Why are you flagging this response? (optional)</label>
+                  <textarea
+                    value={flagReason}
+                    onChange={(e) => setFlagReason(e.target.value)}
+                    placeholder="e.g., The answer seems incorrect, The explanation is confusing, Missing important information..."
+                    rows={4}
+                  />
+                </div>
+                
+                <div className="flag-modal-actions">
+                  <button 
+                    className="flag-cancel-btn"
+                    onClick={closeFlagModal}
+                    disabled={flagLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    className="flag-submit-btn"
+                    onClick={handleFlagAIResponse}
+                    disabled={flagLoading}
+                  >
+                    {flagLoading ? 'Submitting...' : '🚩 Submit Flag'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Flag Modal Styles */}
+          <style>{`
+            .flag-modal-overlay {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              background: rgba(0, 0, 0, 0.6);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              z-index: 1000;
+              animation: fadeIn 0.2s ease;
+            }
+
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+
+            .flag-modal {
+              background: #36393f;
+              border-radius: 12px;
+              padding: 0;
+              max-width: 450px;
+              width: 90%;
+              box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+              animation: slideIn 0.2s ease;
+            }
+
+            @keyframes slideIn {
+              from {
+                opacity: 0;
+                transform: scale(0.95) translateY(-10px);
+              }
+              to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+              }
+            }
+
+            .flag-modal-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              padding: 16px 20px;
+              background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+              border-radius: 12px 12px 0 0;
+            }
+
+            .flag-modal-header h3 {
+              margin: 0;
+              color: white;
+              font-size: 18px;
+              font-weight: 600;
+            }
+
+            .flag-modal-close {
+              background: rgba(255, 255, 255, 0.2);
+              border: none;
+              color: white;
+              width: 28px;
+              height: 28px;
+              border-radius: 50%;
+              font-size: 18px;
+              cursor: pointer;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              transition: background 0.15s ease;
+            }
+
+            .flag-modal-close:hover {
+              background: rgba(255, 255, 255, 0.3);
+            }
+
+            .flag-modal-description {
+              padding: 16px 20px 0;
+              color: #b9bbbe;
+              font-size: 14px;
+              line-height: 1.5;
+              margin: 0;
+            }
+
+            .flag-modal-field {
+              padding: 16px 20px;
+            }
+
+            .flag-modal-field label {
+              display: block;
+              color: #dcddde;
+              font-size: 13px;
+              font-weight: 500;
+              margin-bottom: 8px;
+            }
+
+            .flag-modal-field textarea {
+              width: 100%;
+              background: #2f3136;
+              border: 1px solid #4a4d52;
+              border-radius: 8px;
+              padding: 12px;
+              color: #dcddde;
+              font-size: 14px;
+              line-height: 1.5;
+              resize: vertical;
+              font-family: inherit;
+              transition: border-color 0.2s ease;
+            }
+
+            .flag-modal-field textarea:focus {
+              outline: none;
+              border-color: #e74c3c;
+            }
+
+            .flag-modal-field textarea::placeholder {
+              color: #72767d;
+            }
+
+            .flag-modal-actions {
+              display: flex;
+              justify-content: flex-end;
+              gap: 12px;
+              padding: 16px 20px;
+              background: #2f3136;
+              border-radius: 0 0 12px 12px;
+            }
+
+            .flag-cancel-btn {
+              background: transparent;
+              border: 1px solid #4a4d52;
+              color: #b9bbbe;
+              padding: 10px 20px;
+              border-radius: 6px;
+              font-size: 14px;
+              cursor: pointer;
+              transition: all 0.15s ease;
+            }
+
+            .flag-cancel-btn:hover:not(:disabled) {
+              background: #3c3f45;
+              color: #fff;
+            }
+
+            .flag-submit-btn {
+              background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+              border: none;
+              color: white;
+              padding: 10px 20px;
+              border-radius: 6px;
+              font-size: 14px;
+              font-weight: 500;
+              cursor: pointer;
+              transition: all 0.15s ease;
+            }
+
+            .flag-submit-btn:hover:not(:disabled) {
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+            }
+
+            .flag-submit-btn:disabled,
+            .flag-cancel-btn:disabled {
+              opacity: 0.6;
+              cursor: not-allowed;
+            }
+          `}</style>
         </>
       )}
     </div>
