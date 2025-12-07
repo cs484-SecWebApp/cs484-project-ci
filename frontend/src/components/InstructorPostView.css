@@ -187,13 +187,23 @@
 }
 
 .edit-btn {
-  background-color: #e3f2fd;
-  border-color: #1976d2;
-  color: #1976d2;
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
 }
 
 .edit-btn:hover {
-  background-color: #bbdefb;
+  background-color: #f3f4f6;
+  color: #1f2937;
 }
 
 .upvote-btn.active {
@@ -856,4 +866,167 @@
 .endorse-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+/* ============================================
+   INSTRUCTOR ANSWER EDIT BUTTON IMPROVEMENTS
+   ============================================ */
+
+/* Clean edit button for instructor answer */
+.answer-item .answer-actions {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.answer-item .edit-btn {
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px 16px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.answer-item .edit-btn:hover {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+  color: #374151;
+}
+
+/* Edit answer container styling */
+.answer-edit-container {
+  margin-top: 12px;
+}
+
+.answer-edit-container .answer-input {
+  width: 100%;
+  min-height: 120px;
+  padding: 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.answer-edit-container .answer-input:focus {
+  outline: none;
+  border-color: #f59e0b;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1);
+}
+
+.answer-edit-container .edit-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.answer-edit-container .save-btn {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.answer-edit-container .save-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.answer-edit-container .save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.answer-edit-container .cancel-btn {
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.answer-edit-container .cancel-btn:hover {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+/* ============================================
+   FOLLOWUP DISCUSSION SPACING IMPROVEMENTS
+   ============================================ */
+
+/* Better spacing for followup items */
+.followup-item {
+  padding: 14px 16px;
+  margin-bottom: 12px;
+}
+
+.followup-item .followup-content {
+  margin-bottom: 14px;
+  line-height: 1.6;
+}
+
+/* Followup actions row */
+.followup-item .followup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Nested replies spacing */
+.followup-item .followup-item {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* Endorse button for student answers */
+.followup-actions .endorse-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.followup-actions .endorse-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+}
+
+/* Endorsed badge in followups */
+.followup-actions .endorsed-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }

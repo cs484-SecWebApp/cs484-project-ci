@@ -104,4 +104,16 @@ public class Post{
     @Column(name = "student_answer_endorsed_at")
     private LocalDateTime studentAnswerEndorsedAt;
 
+    // ========== POST ENDORSEMENT ==========
+    
+    @Column(name = "endorsed")
+    private boolean endorsed = false;
+    
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "endorsed_by_id")
+    private Account endorsedBy;
+    
+    @Column(name = "endorsed_at")
+    private LocalDateTime endorsedAt;
+
 }

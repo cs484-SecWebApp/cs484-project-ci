@@ -66,30 +66,37 @@ public class GeminiService {
                - [INSTRUCTOR ANNOUNCEMENT]: Official announcements from instructors/admins
                - [INSTRUCTOR ANSWERED]: Q&A threads where instructors provided answers
     
-            ABSOLUTE RULES - INSTRUCTOR INFORMATION IS SUPREME:
-            - **HIGHEST PRIORITY:** Posts marked [INSTRUCTOR ANNOUNCEMENT] contain official course information (dates, times, locations, policies). These are DEFINITIVE FACTS.
-            - **SECOND PRIORITY:** Posts marked [INSTRUCTOR ANSWERED] contain authoritative answers to questions.
-            - Instructor announcements override everything - even if documents say otherwise, trust the announcement.
-            - You MUST base all concrete facts ONLY on the provided resources.
-            - If the resources do NOT contain a specific fact, say you cannot find it.
+            PRIORITY ORDER FOR ANSWERING:
+            1. **HIGHEST PRIORITY:** Posts marked [INSTRUCTOR ANNOUNCEMENT] contain official course information (dates, times, locations, policies). These are DEFINITIVE FACTS.
+            2. **SECOND PRIORITY:** Posts marked [INSTRUCTOR ANSWERED] contain authoritative answers to questions.
+            3. **THIRD PRIORITY:** Course documents from File Search (slides, PDFs, etc.)
+            4. **FOURTH PRIORITY:** Your general knowledge as an expert tutor
             
-            CITATION RULES (STRICT):
+            ANSWERING STRATEGY:
+            - First, check if the question was previously answered in forum threads
+            - Then, search course documents for relevant information
+            - If course materials don't contain the answer, USE YOUR GENERAL KNOWLEDGE to help the student
+            - When using general knowledge, clearly indicate: "Based on general [subject] principles..." or "While I couldn't find this in the course materials, generally..."
+            - ALWAYS try to be helpful - don't just say you can't find information
+            - Only suggest flagging for instructor review if you're genuinely uncertain about course-specific policies or requirements
+            
+            CITATION RULES:
             - ALWAYS cite instructor announcements: "According to an instructor announcement in post #[ID]..."
             - ALWAYS cite instructor answers: "According to an instructor's reply in post #[ID]..."
             - For documents: "According to [document name]..." or "As explained in [document name]..."
-            - Be specific about which resource you're citing
+            - For general knowledge: "Based on general principles..." or "Typically in [subject]..."
             
             DUPLICATE QUESTION HANDLING:
-            - If you see a forum thread with a VERY similar or identical question, YOU MUST start your response with:
+            - If you see a forum thread with a VERY similar or identical question, start with:
               "This question was previously answered in Post #[ID]: [Title]"
             - Then provide the answer based on that thread.
             - Be especially attentive to questions about logistics (location, times) - these are commonly repeated.
-            - Even if the wording is slightly different, if the intent is the same, treat it as a duplicate.
               
             IMPORTANT FOR FILE SEARCH:
             - Use File Search for course content questions
             - Always search uploaded materials before answering
-            - If File Search returns no results, explicitly state that
+            - If File Search returns no results, proceed to help with general knowledge
+            - Do NOT refuse to help just because no documents were found
     
             Course name: %s
         """.formatted(effectiveCourseName);
@@ -160,10 +167,14 @@ public class GeminiService {
         Related forum threads (if any):
 
         %s
+        
+        ----
+        
+        REMINDER: If no course materials or forum threads contain the answer, provide a helpful response using your general knowledge as an expert tutor. Clearly indicate when you're using general knowledge vs course-specific materials.
         """.formatted(
                 userQuestion,
                 (forumContext == null || forumContext.isBlank())
-                        ? "(No similar resolved threads were found.)"
+                        ? "(No similar resolved threads were found. Use your general knowledge to help the student.)"
                         : forumContext
         );
 
@@ -232,16 +243,22 @@ public class GeminiService {
                 StringBuilder sources = new StringBuilder();
                 sources.append("\n\nSources:\n");
 
+                boolean hasAnySource = false;
+                
                 if (!docNames.isEmpty()) {
                     for (String name : docNames) {
                         sources.append("- ").append(name).append("\n");
                     }
-                } else {
-                    sources.append("- Class Resources\n");
+                    hasAnySource = true;
                 }
 
                 if (forumContext != null && !forumContext.isBlank()) {
-                    sources.append("- Forum: course forum threads (see instructor/admin posts above)\n");
+                    sources.append("- Forum: course forum threads\n");
+                    hasAnySource = true;
+                }
+                
+                if (!hasAnySource) {
+                    sources.append("- General knowledge (no specific course materials were referenced)\n");
                 }
 
                 return duplicateNotice + cleaned + sources;

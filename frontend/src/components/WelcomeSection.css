@@ -1,3 +1,14 @@
+/* ============================================
+   WELCOME / GETTING STARTED SECTION
+   ============================================
+   Replaces "Class at a Glance" with helpful
+   onboarding instructions for students & instructors
+============================================ */
+
+/* ============================================
+   NO SIDEBAR LAYOUT (Resources, Statistics)
+   ============================================ */
+
 .dashboard-content.no-sidebar {
   display: block; /* Override flex layout */
 }
@@ -379,4 +390,42 @@
   .tip-item {
     width: 100%;
   }
+}
+
+/* ============================================
+   AI NOTE SECTION
+   ============================================ */
+
+.ai-note-section {
+  margin-top: 24px;
+  padding: 0 8px;
+}
+
+.ai-note-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 100%);
+  border: 1px solid #fcd34d;
+  border-left: 4px solid #f59e0b;
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(245, 158, 11, 0.1);
+}
+
+.ai-note-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.ai-note-content {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #92400e;
+}
+
+.ai-note-content strong {
+  color: #78350f;
+  font-weight: 600;
 }

@@ -70,7 +70,7 @@ public class PostController {
             studentAnswerAuthorName = (sa.getFirstName() + " " + sa.getLastName()).trim();
         }
 
-        // Get endorser name
+        // Get endorser name for student answer
         String studentAnswerEndorsedByName = null;
         if (p.getStudentAnswerEndorsedBy() != null) {
             var endorser = p.getStudentAnswerEndorsedBy();
@@ -79,6 +79,12 @@ public class PostController {
 
         boolean instructorPost = author != null &&
                 (author.hasRole("ROLE_ADMIN") || author.hasRole("ROLE_INSTRUCTOR"));
+        // Get endorser name for post endorsement
+        String postEndorsedByName = null;
+        if (p.getEndorsedBy() != null) {
+            var endorser = p.getEndorsedBy();
+            postEndorsedByName = (endorser.getFirstName() + " " + endorser.getLastName()).trim();
+        }
 
         return new PostSummary(
                 p.getId(),
@@ -96,13 +102,20 @@ public class PostController {
                 replies,
                 p.getUpVotes(),
                 currentUserLiked,
+                // Student Answer fields
                 p.getStudentAnswer(),
                 p.isStudentAnswerEndorsed(),
                 studentAnswerAuthorName,
                 p.getStudentAnswerUpdatedAt(),
                 studentAnswerEndorsedByName,
-                instructorPost
+                instructorPost,
+                // Post Endorsement fields
+                p.isEndorsed(),
+                postEndorsedByName,
+                p.getEndorsedAt()
+                
         );
+    
     }
 
     private ReplySummary toReplySummary(Replies r) {
@@ -126,7 +139,8 @@ public class PostController {
                 r.getOriginalLlmResponse(),
                 r.getCreatedAt(),
                 r.getEditedAt(),
-                r.getFlaggedAt()
+                r.getFlaggedAt(),
+                r.isInstructorAnswer()  // ADDED: Include isInstructorAnswer flag
         );
     }
 
@@ -221,6 +235,11 @@ public class PostController {
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
             reply.setAuthor(account);
             reply.setFromInstructor(account.hasRole("ROLE_ADMIN"));
+            
+            // ADDED: Set isInstructorAnswer flag if this is a formal instructor answer
+            if (account.hasRole("ROLE_ADMIN") && req.isInstructorAnswer()) {
+                reply.setInstructorAnswer(true);
+            }
         } else {
             Account account = accountService.findByEmail("user.user@domain.com")
                     .orElseThrow(() -> new IllegalArgumentException("Account not found"));
@@ -452,49 +471,61 @@ public class PostController {
         Replies reply = repliesRepository.findById(replyId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Reply not found"));
 
-        // Store original for reference (can be used for future fine-tuning)
-        if (reply.isLlmGenerated() && reply.getOriginalLlmResponse() == null) {
-            reply.setOriginalLlmResponse(reply.getBody());
-        }
+        // FIXED: Check if this is an LLM-generated reply or a regular reply
+        if (reply.isLlmGenerated()) {
+            // This is an AI reply - apply AI editing logic
+            // Store original for reference (can be used for future fine-tuning)
+            if (reply.getOriginalLlmResponse() == null) {
+                reply.setOriginalLlmResponse(reply.getBody());
+            }
 
-        // Update response content
-        reply.setBody(request.getBody());
-        reply.setInstructorEdited(true);
-        reply.setEditedAt(LocalDateTime.now());
-        reply.setEditedBy(account);
-        
-        // IMPORTANT: Ensure this is NOT marked as replaced - it's still an AI response
-        reply.setReplacedByInstructor(false);
-        reply.setFromInstructor(false);  // Keep as AI response, not instructor
-        
-        // Explicitly keep llmGenerated as TRUE
-        reply.setLlmGenerated(true);
-        
-        // Mark as reviewed and endorsed
-        reply.setReviewed(true);
-        reply.setReviewedAt(LocalDateTime.now());
-        reply.setReviewedBy(account);
-        reply.setEndorsed(true);
-        
-        // Clear any flags since instructor has addressed it
-        reply.setFlagged(false);
-        reply.setFlaggedAt(null);
-        reply.setFlaggedBy(null);
-        reply.setFlagReason(null);
+            // Update response content
+            reply.setBody(request.getBody());
+            reply.setInstructorEdited(true);
+            reply.setEditedAt(LocalDateTime.now());
+            reply.setEditedBy(account);
+            
+            // IMPORTANT: Ensure this is NOT marked as replaced - it's still an AI response
+            reply.setReplacedByInstructor(false);
+            reply.setFromInstructor(false);  // Keep as AI response, not instructor
+            
+            // Explicitly keep llmGenerated as TRUE
+            reply.setLlmGenerated(true);
+            
+            // Mark as reviewed and endorsed
+            reply.setReviewed(true);
+            reply.setReviewedAt(LocalDateTime.now());
+            reply.setReviewedBy(account);
+            reply.setEndorsed(true);
+            
+            // Clear any flags since instructor has addressed it
+            reply.setFlagged(false);
+            reply.setFlaggedAt(null);
+            reply.setFlaggedBy(null);
+            reply.setFlagReason(null);
 
-        // NOTE: llmGenerated stays TRUE - this is still an AI response, just edited
-        // This allows it to still show as "AI Tutor" but with "Edited by Professor" badge
-
-        if (request.getFeedback() != null) {
-            reply.setReviewFeedback(request.getFeedback());
+            if (request.getFeedback() != null) {
+                reply.setReviewFeedback(request.getFeedback());
+            }
+            
+            log.info("AI response {} edited by instructor {}. State: llmGenerated={}, instructorEdited={}", 
+                    replyId, account.getEmail(), reply.isLlmGenerated(), reply.isInstructorEdited());
+        } else {
+            // This is a regular reply (instructor answer or student reply) - just update the body
+            reply.setBody(request.getBody());
+            reply.setEditedAt(LocalDateTime.now());
+            reply.setEditedBy(account);
+            
+            // Do NOT change any of the other flags - preserve the original state
+            // Do NOT set instructorEdited (that's for AI responses only)
+            // Do NOT set llmGenerated
+            // Do NOT change fromInstructor or isInstructorAnswer
+            
+            log.info("Non-AI reply {} edited by instructor {}. State: fromInstructor={}, isInstructorAnswer={}", 
+                    replyId, account.getEmail(), reply.isFromInstructor(), reply.isInstructorAnswer());
         }
 
         Replies saved = repliesRepository.save(reply);
-        
-        // Debug logging to verify correct state
-        log.info("AI response {} edited by instructor {}. State: llmGenerated={}, instructorEdited={}, replacedByInstructor={}, fromInstructor={}", 
-                replyId, account.getEmail(), saved.isLlmGenerated(), saved.isInstructorEdited(), 
-                saved.isReplacedByInstructor(), saved.isFromInstructor());
 
         return ResponseEntity.ok(toReplySummary(saved));
     }
@@ -706,12 +737,12 @@ public class PostController {
 
         return ResponseEntity.ok(response);
     }
-
-
+    
     @Data
     public static class CreateFollowupRequest {
         private String body;
         private Long parentReplyId;
+        private boolean isInstructorAnswer;  // ADDED: Flag to distinguish formal answers from followup replies
     }
 
     @Data
