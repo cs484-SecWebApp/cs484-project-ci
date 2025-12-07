@@ -533,6 +533,165 @@
   background-color: #154a7f;
 }
 
+.edit-mode {
+  background: white;
+  padding: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 24px;
+
+}
+
+
+
+.edit-header h2 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 20px;
+  color: #1a1a1a;
+}
+
+
+
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+
+
+.edit-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+
+
+.edit-form .form-group label {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+
+
+.edit-title-input {
+  padding: 12px;
+  font-size: 18px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: inherit;
+}
+
+
+
+.edit-title-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+
+
+.edit-content-input {
+  padding: 12px;
+  font-size: 15px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 200px;
+}
+
+
+
+.edit-content-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+
+
+.edit-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+
+
+.cancel-edit-btn,
+
+.save-edit-btn {
+  padding: 10px 20px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+
+
+.cancel-edit-btn {
+  background: white;
+  border: 1px solid #ddd;
+  color: #666;
+}
+
+
+
+.cancel-edit-btn:hover:not(:disabled) {
+  background: #f5f5f5;
+  border-color: #ccc;
+}
+
+
+
+.save-edit-btn {
+  background: #3b82f6;
+  border: none;
+  color: white;
+}
+
+
+
+.save-edit-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+
+
+.cancel-edit-btn:disabled,
+
+.save-edit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+
+
+/* Edited Badge */
+
+.edited-badge {
+  margin-left: 12px;
+  color: #e67e22;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+
+
+
+.edited-badge strong {
+  font-weight: 700;
+}
+
+
+
 /* Responsive */
 @media (max-width: 768px) {
   .instructor-post-view {

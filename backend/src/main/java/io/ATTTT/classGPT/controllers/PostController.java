@@ -747,9 +747,6 @@ public class PostController {
         return ResponseEntity.ok(response);
     }
 
-    // ============================================
-    // REQUEST/RESPONSE DTOs
-    // ============================================
 
     @Data
     public static class CreateFollowupRequest {

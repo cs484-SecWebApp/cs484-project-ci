@@ -20,12 +20,29 @@ const normalizePosts = (apiPosts) =>
         ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
         : 'Unknown';
 
+    // ADDED: Check if post is from instructor
+    const isInstructorPost = p.account && p.account.authorities
+      ? p.account.authorities.some((auth) => 
+          auth.name === 'ROLE_ADMIN' || auth.name === 'ROLE_INSTRUCTOR'
+        )
+      : false;
+
     const created = p.createdAt ? new Date(p.createdAt) : null;
     const modified = p.modifiedAt ? new Date(p.modifiedAt) : null;
 
   
     const followups = (p.replies || []).map((r) => {
       const isLLMReply = Boolean(r.llmGenerated);
+
+      // Debug: log instructor replies
+      if (r.fromInstructor || r.author?.firstName === 'admin' || r.author?.lastName === 'admin') {
+        console.log('=== INSTRUCTOR REPLY DEBUG ===');
+        console.log('Reply ID:', r.id);
+        console.log('fromInstructor:', r.fromInstructor);
+        console.log('author:', r.author);
+        console.log('authorName:', r.authorName);
+        console.log('replacedByInstructor:', r.replacedByInstructor);
+      }
 
         // Determine author name based on reply state
         let authorName;
@@ -88,6 +105,7 @@ const normalizePosts = (apiPosts) =>
       createdAt: p.createdAt,
       modifiedAt: p.modifiedAt,
       author,
+      isInstructorPost, // ADDED: Include instructor post flag
       tag: 'general',
       tags: ['general'],
       isPinned: false,
@@ -743,11 +761,20 @@ const normalizePosts = (apiPosts) =>
                           key={post.id}
                           className={`post-item ${
                             post.isUnread ? 'unread' : ''
-                          }`}
+                          } ${post.isInstructorPost ? 'instructor-post' : ''}`}
                           onClick={() => handlePostClick(post.id)}
                         >
                           <div className="post-content">
-                            <div className="post-title">{post.title}</div>
+                            <div className="post-title-row">
+                              {post.isInstructorPost && (
+                                <span className="instructor-post-badge" title="Posted by instructor">👨‍🏫</span>
+                              )}
+                              <div className="post-title">{post.title}</div>
+                              {(post.studentAnswerEndorsed || 
+                                post.followups?.some(f => f.endorsed || f.replacedByInstructor)) && (
+                                <span className="endorsed-indicator" title="Has endorsed answer">✓</span>
+                              )}
+                            </div>
                             <div className="post-preview">{post.preview}</div>
                           </div>
                           <div className="post-meta">
@@ -839,6 +866,7 @@ const normalizePosts = (apiPosts) =>
                         <li>Open any post/question</li>
                         <li>Click the "AI" button in the actions bar</li>
                         <li>AI generates a helpful response</li>
+                        <li>Click "Let's talk more" to chat further</li>
                         <li>Flag incorrect answers for instructor review</li>
                       </ol>
                     </div>
@@ -1146,6 +1174,32 @@ const normalizePosts = (apiPosts) =>
             .flag-cancel-btn:disabled {
               opacity: 0.6;
               cursor: not-allowed;
+            }
+
+            /* ADDED: Sidebar visual indicators */
+            .post-title-row {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              width: 100%;
+            }
+
+            .instructor-post-badge {
+              font-size: 14px;
+              flex-shrink: 0;
+            }
+
+            .post-item.instructor-post {
+              border-left: 3px solid #f39c12;
+              background: linear-gradient(to right, rgba(243, 156, 18, 0.05), transparent);
+            }
+
+            .endorsed-indicator {
+              margin-left: auto;
+              color: #27ae60;
+              font-weight: bold;
+              font-size: 16px;
+              flex-shrink: 0;
             }
           `}</style>
         </>
