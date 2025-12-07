@@ -464,20 +464,34 @@ const normalizePosts = (apiPosts) =>
     }
   };
 
-  const handleJoinClassSubmit = async (joinCode) => {
-    try {
-      await axios.post(
-        `${API_BASE}/api/classes/join-by-code`,
-        { code: joinCode },
-        { withCredentials: true }
-      );
-      await loadCourses();
-      setShowJoinClassModel(false);
-    } catch (err) {
-      console.error(err);
-      throw err;
+const handleJoinClassSubmit = async (joinCode) => {
+  try {
+    const trimmed = joinCode.trim();
+    await axios.post(
+      `${API_BASE}/api/classes/join-by-code`,
+      { code: trimmed },
+      { withCredentials: true }
+    );
+
+    await loadCourses();
+
+    setShowJoinClassModel(false);
+  } catch (err) {
+    console.error(err);
+
+    const status = err.response?.status;
+    const backendMsg = err.response?.data?.message;
+
+    if (status === 400) {
+      alert(backendMsg || 'Invalid join code');
+    } else if (status === 401) {
+      alert('Your session expired. Please log in again.');
+    } else {
+      alert('Something went wrong joining this class.');
     }
-  };
+  }
+};
+
 
   const filteredPosts = posts.filter((post) => {
     const matchesSearch =

@@ -20,7 +20,11 @@ public class EnrollmentService {
     }
 
     public Enrollment joinByCode(Account student, String joinCode) {
-        Course course = courseRepo.findByJoinCode(joinCode)
+        String code = joinCode == null ? null : joinCode.trim();
+
+        System.out.println("[joinByCode] rawCode='" + joinCode + "', cleaned='" + code + "'");
+
+        Course course = courseRepo.findByJoinCode(code)
                 .orElseThrow(() -> new IllegalArgumentException("Invalid code"));
 
         if (enrollRepo.existsByAccountIdAndCourseId(student.getId(), course.getId())) {
