@@ -772,7 +772,12 @@ const handleCreateCourseSubmit = async (e) => {
             {/* Sidebar - Only show on Q&A tab */}
             {selectedTab === 'qa' && (
               <aside className="sidebar">
-                <button className="new-post-btn" onClick={handleNewPost}>
+                <button 
+                  className="new-post-btn" 
+                  onClick={handleNewPost}
+                  disabled={!activeCourse}
+                  title={!activeCourse ? "Create a class to make posts" : "Create a new post"}
+                >
                   <span className="plus-icon">⊕</span> New Post
                 </button>
 
