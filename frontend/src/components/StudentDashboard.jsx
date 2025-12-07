@@ -20,12 +20,7 @@ const normalizePosts = (apiPosts) =>
         ? `${p.authorFirstName || ''} ${p.authorLastName || ''}`.trim()
         : 'Unknown';
 
-    // ADDED: Check if post is from instructor
-    const isInstructorPost = p.account && p.account.authorities
-      ? p.account.authorities.some((auth) => 
-          auth.name === 'ROLE_ADMIN' || auth.name === 'ROLE_INSTRUCTOR'
-        )
-      : false;
+    const isInstructorPost = !!p.instructorPost;
 
     const created = p.createdAt ? new Date(p.createdAt) : null;
     const modified = p.modifiedAt ? new Date(p.modifiedAt) : null;
