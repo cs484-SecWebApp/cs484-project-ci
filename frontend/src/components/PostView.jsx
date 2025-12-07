@@ -23,7 +23,6 @@ const PostView = ({
   const [upvoteCount, setUpvoteCount] = useState(post.upvotes || 0);
   const [starred, setStarred] = useState(false);
   const [followupText, setFollowupText] = useState('');
-  const [followupAuthor, setFollowupAuthor] = useState(post.followupAuthor || '');
   const [isAILoading, setIsAILoading] = useState(false);
 
   const [replyingToId, setReplyingToId] = useState(null);
@@ -56,11 +55,29 @@ const PostView = ({
   
   const followups = post.followups || [];
   
-  // Separate instructor answers from regular followups
-  // For STUDENTS: Both fromInstructor and replacedByInstructor go to Instructor's Answer
-  // For Replies: Everything else (AI, student replies)
-  const instructorAnswers = followups.filter(f => f.fromInstructor || f.replacedByInstructor);
-  const allFollowups = followups.filter(f => !f.fromInstructor && !f.replacedByInstructor);
+  // FIXED: First instructor response goes to Instructor's Answer section
+  // Priority: 1) Formal instructor answer (isInstructorAnswer: true)
+  //           2) First instructor reply (fromInstructor: true) if no formal answer exists
+  //           3) Replaced AI responses (replacedByInstructor: true)
+  const formalInstructorAnswer = followups.find(f => f.isInstructorAnswer === true);
+  const firstInstructorReply = followups.find(f => f.fromInstructor && !f.isLLMReply);
+  const replacedAIResponses = followups.filter(f => f.replacedByInstructor);
+  
+  // Build instructor answers array
+  let instructorAnswers = [...replacedAIResponses];
+  if (formalInstructorAnswer) {
+    instructorAnswers = [formalInstructorAnswer, ...instructorAnswers];
+  } else if (firstInstructorReply) {
+    instructorAnswers = [firstInstructorReply, ...instructorAnswers];
+  }
+  
+  // Get the ID of the reply shown in Instructor's Answer section (to exclude from followups)
+  const instructorAnswerReplyId = (formalInstructorAnswer || firstInstructorReply)?.id;
+  
+  // All other replies go to Followup Discussions
+  const allFollowups = followups.filter(f => 
+    f.id !== instructorAnswerReplyId && !f.replacedByInstructor
+  );
 
   const handleUpvote = async () => {
     try {
@@ -244,27 +261,33 @@ const PostView = ({
     return roots;
   };
 
-  // Build reply tree from all followups (instructor + student + AI)
+  // Build reply tree from all followups (including instructor followup replies)
   const replyTree = buildReplyingTo(allFollowups);
 
   const getReplyDisplayType = (followup) => {
     const isAIResponse = followup.isLLMReply || followup.llmGenerated;
     
-    if (followup.replacedByInstructor) {
+    // Formal instructor answer (replaced AI or submitted in answer box)
+    if (followup.replacedByInstructor || followup.isInstructorAnswer) {
       return 'instructor';
     }
+    // AI response edited by instructor
     if (isAIResponse && followup.instructorEdited) {
       return 'instructor-ai';
     }
+    // AI response endorsed by instructor
     if (isAIResponse && followup.endorsed && !followup.instructorEdited) {
       return 'ai-endorsed';
     }
+    // Regular AI response
     if (isAIResponse) {
       return 'ai';
     }
+    // Instructor followup reply (NOT in answer box)
     if (followup.fromInstructor) {
-      return 'instructor';
+      return 'instructor-followup';
     }
+    // Student reply
     return 'student';
   };
 
@@ -275,7 +298,7 @@ const PostView = ({
       return (
       <div
         key={followup.id}
-        className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''} ${followup.endorsed ? 'endorsed' : ''} ${followup.instructorEdited ? 'edited' : ''} ${followup.flagged ? 'flagged-reply' : ''} ${followup.replacedByInstructor ? 'instructor-answer' : ''} ${displayType === 'instructor-ai' ? 'instructor-ai-answer' : ''}`}
+        className={`followup-item ${followup.isLLMReply ? 'ai-reply' : ''} ${followup.endorsed ? 'endorsed' : ''} ${followup.instructorEdited ? 'edited' : ''} ${followup.flagged ? 'flagged-reply' : ''} ${followup.replacedByInstructor ? 'instructor-answer' : ''} ${displayType === 'instructor-ai' ? 'instructor-ai-answer' : ''} ${displayType === 'instructor-followup' ? 'instructor-followup-reply' : ''}`}
         style={{ marginLeft: depth * 24 }}
       >
         <div className="followup-meta">
@@ -284,6 +307,7 @@ const PostView = ({
             {displayType === 'instructor-ai' && '🤖 Instructor-AI'}
             {displayType === 'ai-endorsed' && '🤖 AI Tutor'}
             {displayType === 'ai' && '🤖 AI Tutor'}
+            {displayType === 'instructor-followup' && `👨‍🏫 ${followup.author}`}
             {displayType === 'student' && followup.author}
           </span>
           
@@ -299,6 +323,15 @@ const PostView = ({
           
           {displayType === 'ai-endorsed' && (
             <span className="endorsed-badge">✓ INSTRUCTOR APPROVED</span>
+          )}
+
+          {displayType === 'instructor-followup' && (
+            <span className="instructor-followup-badge">Instructor</span>
+          )}
+          
+          {/* ADDED: Show endorsed badge for student replies */}
+          {displayType === 'student' && followup.endorsed && (
+            <span className="endorsed-badge">✓ Endorsed by Instructor</span>
           )}
           
           {followup.isLLMReply && followup.flagged && !followup.endorsed && (
@@ -330,6 +363,7 @@ const PostView = ({
             setReplyingToAuthor(
               displayType === 'instructor' ? (followup.editedByName || followup.author || 'Instructor') :
               displayType === 'instructor-ai' ? 'Instructor-AI' :
+              displayType === 'instructor-followup' ? followup.author :
               displayType.startsWith('ai') ? 'AI Tutor' : followup.author
             );
           }}
@@ -382,6 +416,13 @@ return (
             <span className="post-type">{post.type}</span>
             <span className="post-id">@{post.number}</span>
           </div>
+          {/* POST ENDORSEMENT BADGE */}
+          {post.endorsed && (
+            <span className="post-endorsed-badge">
+              ✓ Good Question
+              {post.endorsedBy && ` • Endorsed by ${post.endorsedBy}`}
+            </span>
+          )}
           <button className="more-options">⋮</button>
         </div>
       </div>
@@ -579,7 +620,7 @@ return (
             )}
           </div>
 
-          {/* FIXED: Instructor Section - Shows only replacedByInstructor replies */}
+          {/* Instructor Section - Shows only formal instructor answers */}
           <div className="answer-section instructor-answer-section">
             <div className="section-header">
               <div className="section-icon instructor-icon">I</div>
@@ -600,7 +641,7 @@ return (
                 : 'instructor'}
             </div>
 
-            {/* Show replacedByInstructor replies, then fall back to post.instructorReplies */}
+            {/* Show formal instructor answers only */}
             {instructorAnswers.length > 0 ? (
               <div className="answers-list">
                 {instructorAnswers.map((reply, index) => (
@@ -641,7 +682,7 @@ return (
             )}
           </div>
 
-          {/* FIXED: AI Section (Removed duplicates) */}
+          {/* AI Section */}
           {(post.aiReplies?.length > 0 || post.aiAnswer) && (
             <div className="answer-section ai-answer-section">
               <div className="section-header">
@@ -677,11 +718,12 @@ return (
             </div>
           )}
 
+          {/* Followup Discussions - Now includes instructor followup replies */}
           <div className="followup-section">
             <div className="section-header followup-header">
               <div className="section-icon followup-icon">💬</div>
               <h2 className="section-title">
-                Replies
+                {allFollowups.length} Followup Discussion{allFollowups.length !== 1 ? 's' : ''}
               </h2>
             </div>
 

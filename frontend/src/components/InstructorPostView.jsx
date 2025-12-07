@@ -35,6 +35,11 @@ const InstructorPostView = ({
   const [isSaving, setIsSaving] = useState(false);
   
   const [isEndorsingStudentAnswer, setIsEndorsingStudentAnswer] = useState(false);
+  
+  // ADDED: State for editing instructor answer
+  const [isEditingInstructorAnswer, setIsEditingInstructorAnswer] = useState(false);
+  const [editInstructorAnswerText, setEditInstructorAnswerText] = useState('');
+  const [isSavingInstructorAnswer, setIsSavingInstructorAnswer] = useState(false);
 
   // CRITICAL FIX: Get current user from backend to properly check ownership
   const [currentUserEmail, setCurrentUserEmail] = useState(null);
@@ -172,7 +177,8 @@ const InstructorPostView = ({
     if (!instructorReplyText.trim() || !onInstructorReply) return;
 
     try {
-      await onInstructorReply(post.id, instructorReplyText, null);
+      // FIXED: Pass isInstructorAnswer: true for formal instructor answers
+      await onInstructorReply(post.id, instructorReplyText, null, true);
       setInstructorReplyText('');
     } catch (err) {
       console.error(err);
@@ -183,7 +189,8 @@ const InstructorPostView = ({
     if (!followupText.trim() || !onInstructorReply) return;
 
     try {
-      await onInstructorReply(post.id, followupText, replyingToId || null);
+      // FIXED: Pass isInstructorAnswer: false for followup discussions
+      await onInstructorReply(post.id, followupText, replyingToId || null, false);
       setFollowupText('');
       setReplyingToId(null);
       setReplyingToAuthor(null);
@@ -217,7 +224,65 @@ const InstructorPostView = ({
     }
   };
 
+  // ADDED: Handler for editing instructor answer
+  const handleEditInstructorAnswer = async () => {
+    if (!editInstructorAnswerText.trim()) return;
+    
+    setIsSavingInstructorAnswer(true);
+    try {
+      const existingAnswer = post.instructorReplies && post.instructorReplies[0];
+      if (existingAnswer && existingAnswer.id) {
+        // Edit existing answer
+        await axios.put(
+          `${API_BASE}/api/posts/${post.id}/replies/${existingAnswer.id}`,
+          { body: editInstructorAnswerText },
+          { withCredentials: true }
+        );
+      }
+      
+      setIsEditingInstructorAnswer(false);
+      if (onRefreshPost) {
+        onRefreshPost();
+      }
+    } catch (err) {
+      console.error('Error updating instructor answer:', err);
+      alert('Failed to update instructor answer');
+    } finally {
+      setIsSavingInstructorAnswer(false);
+    }
+  };
+
+  // ADDED: Handler for endorsing student followup replies
+  const handleEndorseFollowupReply = async (replyId) => {
+    try {
+      await axios.put(
+        `${API_BASE}/api/posts/${post.id}/replies/${replyId}/endorse`,
+        {},
+        { withCredentials: true }
+      );
+      
+      if (onRefreshPost) {
+        onRefreshPost();
+      }
+    } catch (err) {
+      console.error('Error endorsing reply:', err);
+      alert('Failed to endorse reply');
+    }
+  };
+
   const followups = post.followups || [];
+  
+  // FIXED: Determine which reply (if any) is shown in Instructor's Answer section
+  // This is either the formal instructor answer OR the first instructor reply
+  const formalInstructorAnswer = followups.find(f => f.isInstructorAnswer === true);
+  const firstInstructorReply = followups.find(f => f.fromInstructor && !f.isLLMReply);
+  const instructorAnswerReply = formalInstructorAnswer || firstInstructorReply;
+  const instructorAnswerReplyId = instructorAnswerReply ? instructorAnswerReply.id : null;
+  
+  // Followup discussions exclude the reply shown in Instructor's Answer section
+  const discussionFollowups = followups.filter(f => 
+    f.id !== instructorAnswerReplyId && !f.replacedByInstructor
+  );
 
   const buildReplyTree = (replies) => {
     const map = new Map();
@@ -241,7 +306,8 @@ const InstructorPostView = ({
     return roots;
   };
 
-  const replyTree = buildReplyTree(followups);
+  // FIXED: Build reply tree from discussion followups only (excludes formal instructor answers)
+  const replyTree = buildReplyTree(discussionFollowups);
 
   const getReplyDisplayType = (followup) => {
     if (followup.replacedByInstructor) {
@@ -255,6 +321,10 @@ const InstructorPostView = ({
     }
     if (followup.isLLMReply || followup.llmGenerated) {
       return 'ai';
+    }
+    // FIXED: Instructor followup replies (not formal answers) show as instructor-followup
+    if (followup.fromInstructor && !followup.isInstructorAnswer) {
+      return 'instructor-followup';
     }
     if (followup.fromInstructor) {
       return 'instructor';
@@ -275,11 +345,16 @@ const InstructorPostView = ({
         <div className="followup-meta">
           <span className="followup-author">
             {displayType === 'instructor' && `👨‍🏫 ${followup.editedByName || followup.author || 'Instructor'}`}
+            {displayType === 'instructor-followup' && `👨‍🏫 ${followup.author || 'Instructor'}`}
             {displayType === 'instructor-ai' && '🤖 Instructor-AI'}
             {displayType === 'ai-endorsed' && '🤖 AI Tutor'}
             {displayType === 'ai' && '🤖 AI Tutor'}
             {displayType === 'student' && followup.author}
           </span>
+          
+          {displayType === 'instructor-followup' && (
+            <span className="instructor-badge">INSTRUCTOR</span>
+          )}
           
           {displayType === 'instructor' && followup.replacedByInstructor && (
             <span className="instructor-badge">Instructor Answer</span>
@@ -331,6 +406,21 @@ const InstructorPostView = ({
           >
             Reply
           </button>
+          
+          {/* ADDED: Endorse button for student replies */}
+          {displayType === 'student' && !followup.endorsed && (
+            <button
+              className="endorse-btn"
+              onClick={() => handleEndorseFollowupReply(followup.id)}
+            >
+              ✓ Endorse Answer
+            </button>
+          )}
+          
+          {/* Show endorsed badge for student replies that are endorsed */}
+          {displayType === 'student' && followup.endorsed && (
+            <span className="endorsed-badge">✓ Endorsed</span>
+          )}
           
           {(followup.isLLMReply || followup.llmGenerated) && !followup.replacedByInstructor && !followup.endorsed && onEndorseReply && (
             <button
@@ -528,25 +618,67 @@ const InstructorPostView = ({
             <div className="section-subtitle">
               Updated{' '}
               {post.instructorReplies && post.instructorReplies.length > 0
-                ? post.instructorReplies[post.instructorReplies.length - 1].time
+                ? post.instructorReplies[0].time
                 : 'never'}{' '}
               by{' '}
               {post.instructorReplies && post.instructorReplies.length > 0
-                ? post.instructorReplies[post.instructorReplies.length - 1].author
+                ? post.instructorReplies[0].author
                 : 'instructor'}
             </div>
 
             {post.instructorReplies && post.instructorReplies.length > 0 ? (
+              // FIXED: Show only ONE instructor answer with edit capability
               <div className="answers-list">
-                {post.instructorReplies.map((reply, index) => (
-                  <div key={reply.id || index} className="answer-item">
-                    <div className="answer-meta">
-                      <span className="answer-author">{reply.author}</span>
-                      <span className="answer-time">{reply.time}</span>
+                {isEditingInstructorAnswer ? (
+                  <div className="answer-edit-container">
+                    <textarea
+                      className="answer-input"
+                      value={editInstructorAnswerText}
+                      onChange={(e) => setEditInstructorAnswerText(e.target.value)}
+                      rows={6}
+                    />
+                    <div className="edit-actions">
+                      <button 
+                        className="save-btn"
+                        onClick={handleEditInstructorAnswer}
+                        disabled={isSavingInstructorAnswer}
+                      >
+                        {isSavingInstructorAnswer ? 'Saving...' : 'Save'}
+                      </button>
+                      <button 
+                        className="cancel-btn"
+                        onClick={() => {
+                          setIsEditingInstructorAnswer(false);
+                          setEditInstructorAnswerText('');
+                        }}
+                      >
+                        Cancel
+                      </button>
                     </div>
-                    <div className="answer-content">{reply.content}</div>
                   </div>
-                ))}
+                ) : (
+                  <div className="answer-item">
+                    <div className="answer-meta">
+                      <span className="answer-author">{post.instructorReplies[0].author}</span>
+                      <span className="answer-time">{post.instructorReplies[0].time}</span>
+                    </div>
+                    <div 
+                      className="answer-content"
+                      dangerouslySetInnerHTML={{ __html: post.instructorReplies[0].content }}
+                    />
+                    <div className="answer-actions">
+                      <button 
+                        className="edit-btn"
+                        onClick={() => {
+                          setIsEditingInstructorAnswer(true);
+                          setEditInstructorAnswerText(post.instructorReplies[0].content);
+                        }}
+                      >
+                        ✏️ Edit Answer
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="answer-input-container">
@@ -608,12 +740,12 @@ const InstructorPostView = ({
             <div className="section-header followup-header">
               <div className="section-icon followup-icon">💬</div>
               <h2 className="section-title">
-                {followups.length} Followup Discussion
-                {followups.length !== 1 ? 's' : ''}
+                {discussionFollowups.length} Followup Discussion
+                {discussionFollowups.length !== 1 ? 's' : ''}
               </h2>
             </div>
 
-            {followups.length > 0 ? (
+            {discussionFollowups.length > 0 ? (
               <div className="followups-list">{renderReplies(replyTree)}</div>
             ) : (
               <div className="no-followups">No followup discussions yet</div>

@@ -612,17 +612,17 @@
 
 .followup-item .followup-content {
   display: block;
-  margin-bottom: 10px;  
+  margin-bottom: 14px;  /* Increased from 10px for better spacing */
 }
 
 .followup-item .reply-btn,
 .followup-item .flag-btn,
 .followup-item .discuss-more {
-  margin-top: 4px;      
+  margin-top: 8px;      /* Increased from 4px */
 }
 
 .followups-list .followup-item {
-  padding: 8px 12px 10px;
+  padding: 12px 14px 14px; /* Increased padding */
 }
 
 /* ============================================
@@ -1023,3 +1023,59 @@
   cursor: not-allowed;
 }
 
+
+/* ============================================
+   FOLLOWUP SPACING IMPROVEMENTS
+   ============================================ */
+
+/* Better spacing for nested replies */
+.followup-item .followup-item {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
+
+/* Followup actions row with proper spacing */
+.followup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* Student endorsed badge styling */
+.followup-item .endorsed-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Instructor followup badge */
+.instructor-followup-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: #f39c12;
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+}
+
+/* Instructor followup reply styling */
+.followup-item.instructor-followup-reply {
+  background: linear-gradient(135deg, #fff9e6 0%, #fff5d6 100%);
+  border-left: 3px solid #f39c12;
+}

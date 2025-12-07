@@ -91,6 +91,7 @@ const normalizePosts = (apiPosts) =>
         isLLMReply: displayAsAI,
         llmGenerated: r.llmGenerated,
         fromInstructor: r.fromInstructor || r.replacedByInstructor || false,
+        isInstructorAnswer: r.isInstructorAnswer || r.replacedByInstructor || false, // ADDED
         endorsed: r.endorsed || false,
         flagged: r.flagged || false,
         reviewed: r.reviewed || false,
@@ -106,12 +107,25 @@ const normalizePosts = (apiPosts) =>
     });
 
     const studentReplies = followups.filter(
-      (r) => !r.fromInstructor && !r.isLLMReply
+      (r) => !r.fromInstructor && !r.isLLMReply && !r.isInstructorAnswer
     );
-    const instructorReplies = followups.filter(
-      (r) => r.fromInstructor && !r.isLLMReply
-    );
-    const aiReplies = followups.filter((r) => r.isLLMReply);
+    
+    // FIXED: First instructor response goes to Instructor's Answer section
+    // Priority: 1) Formal instructor answer (isInstructorAnswer: true)
+    //           2) First instructor reply (fromInstructor: true) if no formal answer exists
+    const formalInstructorAnswer = followups.find(r => r.isInstructorAnswer === true);
+    const firstInstructorReply = followups.find(r => r.fromInstructor && !r.isLLMReply);
+    
+    let instructorReplies = [];
+    if (formalInstructorAnswer) {
+      // Use the formal instructor answer
+      instructorReplies = [formalInstructorAnswer];
+    } else if (firstInstructorReply) {
+      // Fall back to first instructor reply
+      instructorReplies = [firstInstructorReply];
+    }
+    
+    const aiReplies = followups.filter((r) => r.isLLMReply || r.llmGenerated);
 
     return {
       id: p.id,
@@ -284,7 +298,7 @@ const normalizePosts = (apiPosts) =>
     }
   };
 
-  const handleInstructorReply = async (postId, text, parentReplyId = null) => {
+  const handleInstructorReply = async (postId, text, parentReplyId = null, isInstructorAnswer = false) => {
     if (!text.trim()) return;
 
     try {
@@ -293,6 +307,7 @@ const normalizePosts = (apiPosts) =>
         {
           body: text,
           parentReplyId,
+          isInstructorAnswer, // ADDED: Pass flag to backend
         },
         { withCredentials: true }
       );
@@ -468,6 +483,30 @@ const normalizePosts = (apiPosts) =>
     setShowJoinClassModel(true);
   };
 
+  // ADDED: Handler for joining a class by code
+  const handleJoinClassSubmit = async (joinCode) => {
+    try {
+      await axios.post(
+        `${API_BASE}/api/classes/join-by-code`,
+        { code: joinCode },
+        { withCredentials: true }
+      );
+      // Refresh courses list
+      const res = await axios.get(`${API_BASE}/api/classes/mine`, {
+        withCredentials: true,
+      });
+      const list = res.data || [];
+      setCourses(list);
+      if (list.length > 0 && !activeCourse) {
+        setActiveCourse(list[0]);
+      }
+      setShowJoinClassModel(false);
+    } catch (err) {
+      console.error('Error joining class:', err);
+      throw err;
+    }
+  };
+
   const handleAccountSettings = () => {
     setShowAccountSettings(true);
   };
@@ -610,7 +649,7 @@ const handleCreateCourseSubmit = async (e) => {
           <header className="dashboard-header">
             <div className="header-left">
               <div className="logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
-                piazza
+                classGPT
               </div>
               <div className="course-dropdown-container">
                 <div className="course-dropdown" onClick={toggleCourseDropdown}>
@@ -728,6 +767,7 @@ const handleCreateCourseSubmit = async (e) => {
           <JoinClassModel
             isOpen={showJoinClassModel}
             onClose={() => setShowJoinClassModel(false)}
+            onJoin={handleJoinClassSubmit}
           />
 
           <div className={`dashboard-content ${selectedTab !== 'qa' ? 'no-sidebar' : ''}`}>
