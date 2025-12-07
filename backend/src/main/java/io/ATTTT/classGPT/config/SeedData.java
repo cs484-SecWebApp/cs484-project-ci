@@ -10,6 +10,7 @@ import io.ATTTT.classGPT.services.AccountService;
 import io.ATTTT.classGPT.services.PostService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
 import java.util.HashSet;
