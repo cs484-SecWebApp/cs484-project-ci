@@ -24,5 +24,7 @@ public record PostSummary(
         boolean studentAnswerEndorsed,
         String studentAnswerAuthorName,
         LocalDateTime studentAnswerUpdatedAt,
-        String studentAnswerEndorsedByName
+        String studentAnswerEndorsedByName,
+
+        boolean instructorPost
 ) {}

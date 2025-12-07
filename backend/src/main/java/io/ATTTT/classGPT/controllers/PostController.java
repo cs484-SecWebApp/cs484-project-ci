@@ -77,6 +77,9 @@ public class PostController {
             studentAnswerEndorsedByName = (endorser.getFirstName() + " " + endorser.getLastName()).trim();
         }
 
+        boolean instructorPost = author != null &&
+                (author.hasRole("ROLE_ADMIN") || author.hasRole("ROLE_INSTRUCTOR"));
+
         return new PostSummary(
                 p.getId(),
                 p.getTitle(),
@@ -93,12 +96,12 @@ public class PostController {
                 replies,
                 p.getUpVotes(),
                 currentUserLiked,
-                // Student Answer fields
                 p.getStudentAnswer(),
                 p.isStudentAnswerEndorsed(),
                 studentAnswerAuthorName,
                 p.getStudentAnswerUpdatedAt(),
-                studentAnswerEndorsedByName
+                studentAnswerEndorsedByName,
+                instructorPost
         );
     }
 
@@ -134,9 +137,7 @@ public class PostController {
         return accountService.findByEmail(principal.getName()).orElse(null);
     }
 
-    // ============================================
-    // POST CRUD ENDPOINTS
-    // ============================================
+
 
     @GetMapping
     public List<PostSummary> getAllPosts(Principal principal) {
@@ -202,9 +203,6 @@ public class PostController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    // ============================================
-    // REPLY ENDPOINTS
-    // ============================================
 
     @PostMapping("/{id}/replies")
     public ResponseEntity<ReplySummary> addReply(@PathVariable Long id,
@@ -256,9 +254,6 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    // ============================================
-    // ENDORSEMENT ENDPOINT
-    // ============================================
 
     @PutMapping("/{postId}/replies/{replyId}/endorse")
     public ResponseEntity<ReplySummary> endorseReply(@PathVariable Long postId,
@@ -307,13 +302,7 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    // ============================================
-    // LLM ACTIVITY ENDPOINTS
-    // ============================================
 
-    /**
-     * Get only FLAGGED LLM responses for a course (for instructor notification bell)
-     */
     @GetMapping("/classes/{courseId}/flagged-responses")
     public ResponseEntity<List<LLMActivityDto>> getFlaggedResponses(
             @PathVariable Long courseId,
@@ -364,9 +353,7 @@ public class PostController {
         return ResponseEntity.ok(flaggedResponses);
     }
 
-    /**
-     * Get all LLM activity for a course (for statistics/full view)
-     */
+
     @GetMapping("/classes/{courseId}/llm-activity")
     public ResponseEntity<List<LLMActivityDto>> getLLMActivity(
             @PathVariable Long courseId,
@@ -415,13 +402,6 @@ public class PostController {
         return ResponseEntity.ok(llmActivity);
     }
 
-    // ============================================
-    // REVIEW ENDPOINTS
-    // ============================================
-
-    /**
-     * Mark a reply as reviewed
-     */
     @PutMapping("/{postId}/replies/{replyId}/review")
     public ResponseEntity<?> markReplyAsReviewed(
             @PathVariable Long postId,
@@ -453,14 +433,7 @@ public class PostController {
         return ResponseEntity.ok().build();
     }
 
-    /**
-     * Update reply content (instructor editing LLM response)
-     * Keeps llmGenerated=true but marks as edited by instructor.
-     * 
-     * LEARNING: The edited response stays in the forum with fromInstructor indicators.
-     * GeminiService will include this in future RAG context, giving it higher priority
-     * via the [INSTRUCTOR ANSWERED] tag in buildThreadDocument().
-     */
+
     @PutMapping("/{postId}/replies/{replyId}")
     public ResponseEntity<ReplySummary> updateReply(
             @PathVariable Long postId,
@@ -526,14 +499,7 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    /**
-     * Replace LLM response entirely with instructor's answer.
-     * Sets llmGenerated=false, marks as instructor response.
-     * 
-     * LEARNING: The replacement becomes a true instructor answer.
-     * GeminiService will include this in findRecentInstructorPosts() and
-     * mark it with [INSTRUCTOR ANSWERED] for highest priority in RAG.
-     */
+
     @PutMapping("/{postId}/replies/{replyId}/replace")
     public ResponseEntity<ReplySummary> replaceLLMResponse(
             @PathVariable Long postId,
@@ -589,9 +555,7 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    /**
-     * Flag an LLM response (for students)
-     */
+
     @PutMapping("/{postId}/replies/{replyId}/flag")
     public ResponseEntity<ReplySummary> flagReply(@PathVariable Long postId,
                                                   @PathVariable Long replyId,
@@ -634,9 +598,7 @@ public class PostController {
         return ResponseEntity.ok(toReplySummary(saved));
     }
 
-    // ============================================
-    // STATISTICS ENDPOINT
-    // ============================================
+
 
     @GetMapping("/statistics")
     public ResponseEntity<StatisticsResponse> getStatistics() {
@@ -723,9 +685,7 @@ public class PostController {
         return ResponseEntity.ok(toPostSummary(saved, me));
     }
 
-    // ============================================
-    // LIKE ENDPOINT
-    // ============================================
+
 
     @PostMapping("/{postId}/like")
     public ResponseEntity<LikeResponse> toggleLike(@PathVariable Long postId,
@@ -787,13 +747,9 @@ public class PostController {
         public List<AIGenerationInfo> aiGenerations;
     }
 
-    // ============================================
-    // STUDENT ANSWER ENDPOINTS
-    // ============================================
 
-    /**
-     * Submit or update the wiki-style student answer for a post
-     */
+
+
     @PostMapping("/{postId}/student-answer")
     public ResponseEntity<?> submitStudentAnswer(
             @PathVariable Long postId,
@@ -829,9 +785,7 @@ public class PostController {
         ));
     }
 
-    /**
-     * Instructor endorses the student wiki answer
-     */
+
     @PutMapping("/{postId}/student-answer/endorse")
     public ResponseEntity<?> endorseStudentAnswer(
             @PathVariable Long postId,
@@ -867,9 +821,7 @@ public class PostController {
         ));
     }
 
-    /**
-     * Remove endorsement from student answer
-     */
+
     @DeleteMapping("/{postId}/student-answer/endorse")
     public ResponseEntity<?> removeStudentAnswerEndorsement(
             @PathVariable Long postId,
@@ -897,9 +849,7 @@ public class PostController {
         return ResponseEntity.ok().body(Map.of("message", "Endorsement removed"));
     }
 
-    // ============================================
-    // REQUEST/RESPONSE CLASSES
-    // ============================================
+
 
     @Data
     public static class StudentAnswerRequest {

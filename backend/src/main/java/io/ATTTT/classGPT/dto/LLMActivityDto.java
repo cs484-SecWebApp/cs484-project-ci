@@ -20,8 +20,7 @@ public class LLMActivityDto {
     private boolean endorsed;
     private String flagReason;          // Why student flagged it
     private String flaggedByName;       // Who flagged it
-    
-    // Constructor without new fields (for backwards compatibility)
+
     public LLMActivityDto(Long id, Long postId, String postTitle, String llmResponsePreview,
                           LocalDateTime createdAt, boolean reviewed, boolean flagged, boolean endorsed) {
         this.id = id;
