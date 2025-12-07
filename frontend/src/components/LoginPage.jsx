@@ -38,6 +38,19 @@ const LoginPage = ({ onLogin, onRegister }) => {
     }
   };
 
+
+
+  const handleClassCodeChange = (index, value) => {
+    const newCodes = [...classCodes];
+    newCodes[index] = value;
+    setClassCodes(newCodes);
+  };
+
+  const handleRemoveClassCode = (index) => {
+    const newCodes = classCodes.filter((_, i) => i !== index);
+    setClassCodes(newCodes);
+  };
+
   return (
     <div className="login-page">
       <div className="login-container">
@@ -155,6 +168,7 @@ const LoginPage = ({ onLogin, onRegister }) => {
                 </label>
               </div>
             </div>
+
 
             <button type="submit" className="submit-btn" disabled={isLoading}>
               {isLoading ? 'Creating Account...' : 'Create Account'}

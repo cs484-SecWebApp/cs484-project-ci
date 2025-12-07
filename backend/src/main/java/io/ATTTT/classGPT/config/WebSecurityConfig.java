@@ -38,11 +38,7 @@ public class WebSecurityConfig {
                 .cors(withDefaults())
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                        .ignoringRequestMatchers(request -> {
-                            String uri = request.getRequestURI();
-                            return uri.startsWith("/api/")
-                                    || uri.startsWith("/h2-console");
-                        })
+                        .ignoringRequestMatchers("/api/**", "/h2-console/**")
                 )
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint((request, response, authException) -> {
@@ -54,6 +50,7 @@ public class WebSecurityConfig {
                 }))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/h2-console/**").permitAll()
+                        .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/auth/register").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers("/api/auth/me").authenticated()
@@ -62,11 +59,11 @@ public class WebSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/posts").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/posts/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/posts/statistics").permitAll() // Statistics endpoint
-                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/student-answer").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/posts/*/replies").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/student-answer").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/posts/*/replies").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/LLMReply").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/flag").permitAll()
-                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/endorse").permitAll()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/flag").authenticated()
+                        .requestMatchers(HttpMethod.PUT, "/api/posts/*/replies/*/endorse").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/posts/*/like").authenticated()
                         .anyRequest().authenticated()
                 )
