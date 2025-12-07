@@ -40,17 +40,6 @@ const LoginPage = ({ onLogin, onRegister }) => {
 
 
 
-  const handleClassCodeChange = (index, value) => {
-    const newCodes = [...classCodes];
-    newCodes[index] = value;
-    setClassCodes(newCodes);
-  };
-
-  const handleRemoveClassCode = (index) => {
-    const newCodes = classCodes.filter((_, i) => i !== index);
-    setClassCodes(newCodes);
-  };
-
   return (
     <div className="login-page">
       <div className="login-container">
