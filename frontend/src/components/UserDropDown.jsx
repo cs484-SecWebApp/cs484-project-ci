@@ -1,13 +1,8 @@
 import React from 'react';
 import './UserDropDown.css';
 
-const UserDropdown = ({ isOpen, onClose, onAccountSettings, onJoinClass, onLogout, userName }) => {
+const UserDropdown = ({ isOpen, onClose, onJoinClass, onLogout, userName }) => {
   if (!isOpen) return null;
-
-  const handleAccountSettings = () => {
-    onAccountSettings();
-    onClose();
-  };
 
   const handleJoinClass = () => {
     onJoinClass();
@@ -31,13 +26,6 @@ const UserDropdown = ({ isOpen, onClose, onAccountSettings, onJoinClass, onLogou
         </div>
         
         <div className="user-dropdown-menu">
-          <button className="dropdown-menu-item" onClick={handleAccountSettings}>
-            <span className="menu-icon">ℹ️</span>
-            Account Info
-          </button>
-          
-          <div className="dropdown-divider"></div>
-          
           <button className="dropdown-menu-item" onClick={handleJoinClass}>
             <span className="menu-icon">➜</span>
             Join Another Class

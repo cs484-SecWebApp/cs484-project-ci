@@ -7,7 +7,6 @@ import ResourcesPage from './ResourcesPage';
 import StatisticsPage from './StatisticsPage';
 import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
-import AccountSettings from './AccountSettings';
 import LLMNotificationBell from './LLMNotificationBell';
 import LLMReviewModal from './LLMReviewModal';
 import './EnhancedModalStyles.css';
@@ -15,6 +14,12 @@ import './WelcomeSection.css';
 import './LLMNotifications.css';
 
 const API_BASE = 'http://localhost:8080';
+
+// Helper function to strip HTML tags from text
+const stripHtml = (html) => {
+  if (!html) return '';
+  return html.replace(/<[^>]*>/g, '').trim();
+};
 
 const InstructorDashboard = ({ onLogout, userName }) => {
 const normalizePosts = (apiPosts) =>
@@ -132,7 +137,7 @@ const normalizePosts = (apiPosts) =>
       number: p.id,
       type: 'question',
       title: p.title,
-      preview: p.body ? p.body.slice(0, 120) : '',
+      preview: p.body ? stripHtml(p.body).slice(0, 120) : '',
       content: p.body,
       time: created
         ? created.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -179,7 +184,6 @@ const normalizePosts = (apiPosts) =>
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
   const [showJoinClassModel, setShowJoinClassModel] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showStatistics, setShowStatistics] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
 
@@ -466,6 +470,7 @@ const normalizePosts = (apiPosts) =>
     setShowStatistics(false);
     setCreatedPost(false);
     setShowWelcome(true);
+    setSelectedTab('qa');  // ADDED: Switch to Q&A tab when clicking logo
   };
 
 
@@ -505,10 +510,6 @@ const normalizePosts = (apiPosts) =>
       console.error('Error joining class:', err);
       throw err;
     }
-  };
-
-  const handleAccountSettings = () => {
-    setShowAccountSettings(true);
   };
 
   const handleLogout = () => {
@@ -639,9 +640,7 @@ const handleCreateCourseSubmit = async (e) => {
 
    return (
     <div className="student-dashboard">
-      {showAccountSettings ? (
-        <AccountSettings onBack={() => setShowAccountSettings(false)} />
-      ) : showStatistics ? (
+      {showStatistics ? (
         <StatisticsPage posts={posts} onBack={() => setShowStatistics(false)} />
       ) : (
         <>
@@ -755,7 +754,6 @@ const handleCreateCourseSubmit = async (e) => {
                 <UserDropdown
                   isOpen={showUserDropdown}
                   onClose={() => setShowUserDropdown(false)}
-                  onAccountSettings={handleAccountSettings}
                   onJoinClass={handleJoinAnotherClass}
                   onLogout={handleLogout}
                   userName={userName || 'Instructor'}
@@ -774,11 +772,7 @@ const handleCreateCourseSubmit = async (e) => {
             {/* Sidebar - Only show on Q&A tab */}
             {selectedTab === 'qa' && (
               <aside className="sidebar">
-                <button
-                  className="new-post-btn"
-                  onClick={handleNewPost}
-                  disabled={!activeCourse}
-                >
+                <button className="new-post-btn" onClick={handleNewPost}>
                   <span className="plus-icon">⊕</span> New Post
                 </button>
 
@@ -839,35 +833,12 @@ const handleCreateCourseSubmit = async (e) => {
                     <button className="menu-icon">⋮</button>
                   </div>
 
-                  <div className="pinned-section">
-                    <div className="section-header">
-                      <span className="dropdown-icon">▼</span>
-                      <span>Pinned</span>
-                    </div>
-                    {pinnedPosts.map((post) => (
-                      <div
-                        key={post.id}
-                        className="pinned-post"
-                        onClick={() => handlePostClick(post.id)}
-                      >
-                        <span className="pin-icon">📌</span>
-                        <div className="post-info">
-                          <div className="post-title">{post.title}</div>
-                          {post.preview && (
-                            <div className="post-preview">{post.preview}</div>
-                          )}
-                        </div>
-                        <div className="post-date">{post.time}</div>
-                      </div>
-                    ))}
-                  </div>
-
                   <div className="posts-list">
                     <div className="section-header">
                       <span className="dropdown-icon">▼</span>
                        <span>{searchQuery ? 'Search Results' : 'Today'}</span>
                     </div>
-                    {regularPosts.length === 0 && pinnedPosts.length === 0 ? (
+                    {regularPosts.length === 0 ? (
                       <div className="posts-list-empty">
                         
                         <div>

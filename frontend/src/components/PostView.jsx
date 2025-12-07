@@ -21,7 +21,6 @@ const PostView = ({
   // CRITICAL FIX: Use useEffect to sync state when post changes
   const [upvoted, setUpvoted] = useState(post.currentUserLiked || false);
   const [upvoteCount, setUpvoteCount] = useState(post.upvotes || 0);
-  const [starred, setStarred] = useState(false);
   const [followupText, setFollowupText] = useState('');
   const [isAILoading, setIsAILoading] = useState(false);
 
@@ -99,8 +98,6 @@ const PostView = ({
       console.error('Error toggling like:', err);
     }
   };
-
-  const handleStar = () => setStarred(!starred);
 
   const handleFlagReply = async (replyId) => {
     // If onFlagAIResponse is provided, use the modal approach
@@ -516,15 +513,6 @@ return (
             >
               <span className="thumbs-up-icon">👍</span>{' '}
               {upvoteCount}
-            </button>
-            <button
-              className={`action-btn star-btn ${starred ? 'active' : ''}`}
-              onClick={handleStar}
-            >
-              <span className="star-icon">{starred ? '★' : '☆'}</span>
-            </button>
-            <button className="action-btn bookmark-btn">
-              <span className="bookmark-icon">📖</span>
             </button>
             <button className="action-btn link-btn" onClick={handleCopyLink}>
               <span className="link-icon">🔗</span>

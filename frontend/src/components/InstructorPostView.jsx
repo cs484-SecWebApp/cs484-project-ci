@@ -22,7 +22,6 @@ const InstructorPostView = ({
   onRefreshPost,
 }) => {
   const [upvoted, setUpvoted] = useState(false);
-  const [starred, setStarred] = useState(false);
   const [instructorReplyText, setInstructorReplyText] = useState('');
   const [followupText, setFollowupText] = useState('');
 
@@ -114,8 +113,6 @@ const InstructorPostView = ({
       onLikePost(post.id);
     }
   };
-
-  const handleStar = () => setStarred(prev => !prev);
 
   const handleCopyLink = () => {
     const postUrl = `${window.location.origin}/post/${post.id}`;
@@ -522,7 +519,10 @@ const InstructorPostView = ({
             )}
           </div>
 
-          <div className="post-body">{post.content}</div>
+          <div 
+            className="post-body"
+            dangerouslySetInnerHTML={{ __html: post.content }}
+          />
 
           {post.tags && post.tags.length > 0 && (
             <div className="post-tags">
@@ -546,15 +546,6 @@ const InstructorPostView = ({
             >
               <span className="thumbs-up-icon">👍</span>{' '}
               {post.upvotes + (upvoted ? 1 : 0)}
-            </button>
-            <button
-              className={`action-btn star-btn ${starred ? 'active' : ''}`}
-              onClick={handleStar}
-            >
-              <span className="star-icon">{starred ? '★' : '☆'}</span>
-            </button>
-            <button className="action-btn bookmark-btn">
-              <span className="bookmark-icon">📖</span>
             </button>
             <button className="action-btn link-btn" onClick={handleCopyLink}>
               <span className="link-icon">🔗</span>

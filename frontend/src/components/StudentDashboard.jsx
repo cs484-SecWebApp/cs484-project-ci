@@ -6,7 +6,6 @@ import NewPostView from './NewPostView';
 import ResourcesPage from './ResourcesPage';
 import JoinClassModel from './JoinClassModel';
 import UserDropdown from './UserDropDown';
-import AccountSettings from './AccountSettings';
 import './WelcomeSection.css';
 
 const API_BASE = 'http://localhost:8080';
@@ -159,7 +158,6 @@ const normalizePosts = (apiPosts) =>
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
   const [showJoinClassModel, setShowJoinClassModel] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [showAccountSettings, setShowAccountSettings] = useState(false);
   const [showWelcome, setShowWelcome] = useState(true);
 
   const [posts, setPosts] = useState([]);
@@ -458,10 +456,6 @@ const normalizePosts = (apiPosts) =>
     setShowJoinClassModel(true);
   };
 
-  const handleAccountSettings = () => {
-    setShowAccountSettings(true);
-  };
-
   const handleLogout = () => {
     if (onLogout) {
       onLogout();
@@ -572,7 +566,6 @@ const normalizePosts = (apiPosts) =>
               isOpen={showUserDropdown}
               onClose={() => setShowUserDropdown(false)}
               userName={userName}
-              onAccountSettings={handleAccountSettings}
               onLogout={handleLogout}
               onJoinClass={handleJoinAnotherClass}
             />
@@ -580,18 +573,18 @@ const normalizePosts = (apiPosts) =>
         </div>
       </header>
 
-      {/* AccountSettings Modal */}
-      {showAccountSettings && (
-        <AccountSettings onClose={() => setShowAccountSettings(false)} />
-      )}
-
       {/* Body */}
       <div className="dashboard-content">
         {/* Sidebar */}
         {selectedTab === 'qa' && (
           <aside className="sidebar">
-            <button className="new-post-btn" onClick={handleNewPost}>
-              <span className="plus-icon">+</span> New Post
+            <button 
+              className="new-post-btn" 
+              onClick={handleNewPost}
+              disabled={!activeCourse}
+              title={!activeCourse ? "Join a class to create posts" : "Create a new post"}
+            >
+              <span className="plus-icon">{activeCourse ? '+' : '⊕'}</span> New Post
             </button>
             <div className="search-box">
               <input

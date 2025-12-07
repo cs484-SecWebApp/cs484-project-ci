@@ -7,7 +7,6 @@ const LoginPage = ({ onLogin, onRegister }) => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState('student');
-  const [classCodes, setClassCodes] = useState(['']);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async (e) => {
@@ -30,8 +29,7 @@ const LoginPage = ({ onLogin, onRegister }) => {
         email, 
         password, 
         fullName, 
-        role: role === 'professor' ? 'instructor' : role, // Map professor to instructor for backend
-        classCodes: role === 'student' ? classCodes.filter(code => code.trim() !== '') : []
+        role: role === 'professor' ? 'instructor' : role // Map professor to instructor for backend
       });
     } catch (error) {
       // Error is already handled in App.js
@@ -40,26 +38,11 @@ const LoginPage = ({ onLogin, onRegister }) => {
     }
   };
 
-  const handleAddClassCode = () => {
-    setClassCodes([...classCodes, '']);
-  };
-
-  const handleClassCodeChange = (index, value) => {
-    const newCodes = [...classCodes];
-    newCodes[index] = value;
-    setClassCodes(newCodes);
-  };
-
-  const handleRemoveClassCode = (index) => {
-    const newCodes = classCodes.filter((_, i) => i !== index);
-    setClassCodes(newCodes);
-  };
-
   return (
     <div className="login-page">
       <div className="login-container">
         <div className="login-header">
-          <h1 className="piazza-logo">piazza</h1>
+          <h1 className="piazza-logo">classGPT</h1>
           <p className="login-subtitle">Learn together. Anywhere.</p>
         </div>
 
@@ -172,40 +155,6 @@ const LoginPage = ({ onLogin, onRegister }) => {
                 </label>
               </div>
             </div>
-
-            {role === 'student' && (
-              <div className="form-group">
-                <label>Class Access Codes (Optional)</label>
-                <p className="field-hint">Enter class codes to join classes immediately</p>
-                {classCodes.map((code, index) => (
-                  <div key={index} className="class-code-row">
-                    <input
-                      type="text"
-                      value={code}
-                      onChange={(e) => handleClassCodeChange(index, e.target.value)}
-                      placeholder="Enter class code"
-                      className="form-input class-code-input"
-                    />
-                    {classCodes.length > 1 && (
-                      <button
-                        type="button"
-                        className="remove-code-btn"
-                        onClick={() => handleRemoveClassCode(index)}
-                      >
-                        ×
-                      </button>
-                    )}
-                  </div>
-                ))}
-                <button 
-                  type="button"
-                  className="add-code-btn" 
-                  onClick={handleAddClassCode}
-                >
-                  + Add Another Class Code
-                </button>
-              </div>
-            )}
 
             <button type="submit" className="submit-btn" disabled={isLoading}>
               {isLoading ? 'Creating Account...' : 'Create Account'}
