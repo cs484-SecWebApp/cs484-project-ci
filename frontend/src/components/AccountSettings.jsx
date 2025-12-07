@@ -1,167 +1,88 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import './AccountSettings.css';
 
+const API_BASE = 'http://localhost:8080';
+
 const AccountSettings = ({ onBack }) => {
-  const [fullName, setFullName] = useState('Tommy Kang');
-  const [preferredEmail, setPreferredEmail] = useState('tkang51@uic.edu');
-  const [otherEmails, setOtherEmails] = useState(['tommyk8477@gmail.com']);
-  const [profilePicture, setProfilePicture] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const handleSave = () => {
-    console.log('Saving settings:', { fullName, preferredEmail, otherEmails });
-    // In a real app, this would send to backend
-  };
+  useEffect(() => {
+    const fetchAccount = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const handleUnlinkEmail = (email) => {
-    setOtherEmails(otherEmails.filter(e => e !== email));
-  };
+        const res = await axios.get(`${API_BASE}/api/accounts/me`, {
+          withCredentials: true,
+        });
 
-  const handleAddEmail = () => {
-    console.log('Add another email');
-  };
+        setAccount(res.data);
+      } catch (err) {
+        console.error('Failed to fetch account info', err);
+        setError('Error loading account information.');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  const handleChangePassword = () => {
-    console.log('Change password');
-  };
+    fetchAccount();
+  }, []);
 
-  const handleUploadPicture = () => {
-    console.log('Upload profile picture');
-  };
-
-  const enrolledClasses = [
-    {
-      id: 1,
-      code: 'CS 421',
-      name: 'Natural Language Processing',
-      term: 'Fall 2025',
-      notifications: 'Daily Digest • Real Time'
-    },
-    {
-      id: 2,
-      code: 'CS 421 (CRN 43946, 43947)',
-      name: 'CS 421: Natural Language Processing (Parde)',
-      term: 'Fall 2025',
-      notifications: 'Daily Digest • Real Time'
-    },
-    {
-      id: 3,
-      code: 'CS 484',
-      name: 'Secure Web Application Development',
-      term: 'Fall 2025',
-      notifications: 'Daily Digest • Real Time'
-    }
-  ];
+  const fullName = account
+    ? `${account.firstName || ''} ${account.lastName || ''}`.trim()
+    : '';
 
   return (
     <div className="account-settings">
-      <button className="back-button" onClick={onBack}>← Back</button>
-      
-      <h1 className="settings-title">Account Settings</h1>
+      <button className="back-button" onClick={onBack}>
+        ← Back
+      </button>
 
-      {/* Personal Settings */}
+      <h1 className="settings-title">Account Info</h1>
+
       <section className="settings-section">
-        <h2 className="section-title">Personal Settings</h2>
-        
-        <div className="settings-row">
-          <div className="settings-left">
-            <div className="form-group">
-              <label htmlFor="fullName">Full Name*</label>
-              <input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="form-input"
-              />
-              <p className="field-hint">Your real name please!</p>
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="preferredEmail">Preferred Email*</label>
-              <input
-                id="preferredEmail"
-                type="email"
-                value={preferredEmail}
-                onChange={(e) => setPreferredEmail(e.target.value)}
-                className="form-input"
-              />
-              <p className="field-hint">Your preferred email address is where you receive email notifications.</p>
-            </div>
-
-            <div className="form-group">
-              <label>Other Emails</label>
-              {otherEmails.map((email, index) => (
-                <div key={index} className="email-row">
-                  <span className="email-text">{email}</span>
-                  <button 
-                    className="unlink-btn"
-                    onClick={() => handleUnlinkEmail(email)}
-                  >
-                    Unlink
-                  </button>
-                </div>
-              ))}
-              <button className="add-email-btn" onClick={handleAddEmail}>
-                + Add Another Email
-              </button>
-              <p className="field-hint">If you have multiple accounts on Piazza with different email addresses, add them here to merge the accounts.</p>
-            </div>
-
-            <button className="change-password-btn" onClick={handleChangePassword}>
-              Change Password
-            </button>
-
-            <p className="required-note">* Required fields</p>
-
-            <div className="form-actions">
-              <button className="save-btn" onClick={handleSave}>Save</button>
-              <button className="cancel-btn" onClick={onBack}>Cancel</button>
-            </div>
-          </div>
-
-          <div className="settings-right">
-            <div className="profile-picture-section">
-              <div className="profile-picture-circle">
-                {profilePicture ? (
-                  <img src={profilePicture} alt="Profile" />
-                ) : (
-                  <div className="default-avatar">TK</div>
-                )}
-              </div>
-              <p className="picture-label">Profile Picture</p>
-              <button className="upload-btn" onClick={handleUploadPicture}>
-                ⬆ Upload
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Class & Email Settings */}
-      <section className="settings-section">
-        <h2 className="section-title">Class & Email Settings</h2>
-        
-        <div className="class-list">
-          {enrolledClasses.map((course) => (
-            <div key={course.id} className="class-item">
-              <div className="class-icon">📘</div>
-              <div className="class-info-column">
-                <div className="class-name">
-                  <strong>{course.code}:</strong> {course.name}
-                </div>
-                <div className="class-term">{course.term}</div>
-                <div className="class-notifications">
-                  <span className="notification-icon">✉️</span>
-                  {course.notifications}
-                  <button className="edit-notifications-btn">Edit Email Notifications</button>
+        {loading ? (
+          <p>Loading account information…</p>
+        ) : error ? (
+          <p className="error-text">{error}</p>
+        ) : (
+          <div className="settings-row simple-settings-row">
+            <div className="settings-left">
+              {/* Name */}
+              <div className="form-group">
+                <label>Full Name</label>
+                <div className="readonly-field">
+                  {fullName || 'Not set'}
                 </div>
               </div>
-              <button className="drop-class-btn">× Drop Class</button>
-            </div>
-          ))}
-        </div>
 
-        <button className="show-inactive-btn">Show Inactive Classes</button>
+              {/* Email */}
+              <div className="form-group">
+                <label>Email</label>
+                <div className="readonly-field">
+                  {account?.email || 'Not set'}
+                </div>
+                <p className="field-hint">
+                  This is the email associated with your Piazza account.
+                </p>
+              </div>
+
+
+              {/* Roles (optional, but nice debug info) */}
+              {account?.roles && account.roles.length > 0 && (
+                <div className="form-group">
+                  <label>Roles</label>
+                  <div className="readonly-field">
+                    {account.roles.join(', ')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

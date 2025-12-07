@@ -32,8 +32,8 @@ const UserDropdown = ({ isOpen, onClose, onAccountSettings, onJoinClass, onLogou
         
         <div className="user-dropdown-menu">
           <button className="dropdown-menu-item" onClick={handleAccountSettings}>
-            <span className="menu-icon">⚙️</span>
-            Account Settings
+            <span className="menu-icon">ℹ️</span>
+            Account Info
           </button>
           
           <div className="dropdown-divider"></div>
