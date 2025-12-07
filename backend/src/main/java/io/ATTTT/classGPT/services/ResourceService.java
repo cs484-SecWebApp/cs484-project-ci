@@ -80,14 +80,45 @@ public class ResourceService {
         // Save to database first
         Resource savedResource = resourceRepository.save(r);
 
-        // Upload to File Search asynchronously
+        // Upload to File Search asynchronously with corrected MIME type
         String storeName = fileSearchStoreService.ensureStoreForCourse(course);
+        String effectiveMimeType = getEffectiveMimeType(file.getOriginalFilename(), file.getContentType());
+        
+        log.info("Uploading to File Search: filename={}, mimeType={}", 
+                file.getOriginalFilename(), effectiveMimeType);
+        
         uploadToFileSearchAsync(savedResource.getId(), storeName, effectiveTitle,
-                bytes, file.getContentType());
+                bytes, effectiveMimeType);
 
         return savedResource;
     }
 
+    /**
+     * Get the correct MIME type for a file.
+     * Browsers often send application/octet-stream for .md files,
+     * which Gemini may not handle correctly.
+     */
+    private String getEffectiveMimeType(String filename, String originalMimeType) {
+        if (filename != null) {
+            String lower = filename.toLowerCase(Locale.ROOT);
+            if (lower.endsWith(".md") || lower.endsWith(".markdown")) {
+                return "text/markdown";
+            }
+            if (lower.endsWith(".txt")) {
+                return "text/plain";
+            }
+            if (lower.endsWith(".json")) {
+                return "application/json";
+            }
+            if (lower.endsWith(".csv")) {
+                return "text/csv";
+            }
+            if (lower.endsWith(".html") || lower.endsWith(".htm")) {
+                return "text/html";
+            }
+        }
+        return originalMimeType != null ? originalMimeType : "application/octet-stream";
+    }
 
     @Async
     public CompletableFuture<Void> uploadToFileSearchAsync(Long resourceId,
